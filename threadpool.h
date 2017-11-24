@@ -1,3 +1,6 @@
+#ifndef THREADPOOL_H
+#define THREADPOOL_H
+
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -62,3 +65,5 @@ pool_t* 	pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t
 int 		pool_queue(pool_t* pool, void* (*func)(void *), void* arg);
 void		pool_wait(pool_t *pool);
 void		pool_destroy(pool_t *pool);
+
+#endif

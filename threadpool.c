@@ -1,4 +1,5 @@
 #include "threadpool.h"
+#include "debug.h"
 
 /**
 * Creates a thread pool. More than one pool can be created.
@@ -52,8 +53,15 @@ pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 	pool->job_head = NULL;
 	pool->job_tail = NULL;
 
+
 	//initialize the attributes of the workers.
-	memcpy(attr,&(pool->pool_attr),sizeof(pthread_attr_t));
+	if (attr != NULL){
+		memcpy(attr,&pool->pool_attr,sizeof(pthread_attr_t));
+	}
+	else {
+		pthread_attr_init(&pool->pool_attr);
+	}
+
 
 	//initialize the rest of the members
 	pool->pool_flags = 0;
@@ -145,13 +153,52 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 // * Else if the maximum number of workers has not been reached,
 // * create a new worker thread to perform the job.
 // * Else just return after adding the job to the queue;
+// * an existing worker thread will perform the job when
+// * it finishes the job it is currently performing.
 
 	if (pool->pool_idle){
-		worker = pool->pool_worker;
-		while (worker != NULL && worker->is_active){ 		//boolean expression short-circuit evaluation prevents dereference of NULL pointer
-			worker = worker->worker_next;
-		}
+
+
+	// Stackoverflow answer to help me do this:
+	// You can "communicate" a new task to existing threads. 
+	// Let existing threads wait for a signal (using pthread_cond_wait()).
+	// When you have a new task, you can store the task in a common 
+	// storage, and then simply signal the worker threads (using 
+	// pthtread_cond_signal()). This approach works well, when 
+	// you have a pool of worker threads that are waiting for incoming
+	// tasks. When you signal, only one thread will wake up (the
+	// pthread_cond_wait is tied to a mutex and so only one of them 
+	// re-acquires the mutex) and the remaining threads 
+	// will continue to wait. 
+
+		pthread_cond_signal(&pool->pool_busycv);
+	 		
 	}
+
+	else if (pool->pool_nthreads < pool->pool_maximum){
+		//make a new thread and assign the job to it.
+		pthread_t thread;
+		r = pthread_create(&thread,&pool->pool_attr,func,arg);
+		if (r < 0){
+			strerror(errno);
+			return r;
+		}
+		else {
+			pool->pool_nthreads++;
+			worker = malloc(sizeof(worker_t));
+			worker->worker_next = NULL;
+			worker->worker_tid = thread;
+			if (pool->pool_worker != NULL){
+				pool->pool_worker->worker_next = worker;
+			}
+			else {
+				pool->pool_worker = worker;
+			}
+
+		}
+
+	}
+
 
 	return r;
 }
@@ -167,7 +214,13 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 void
 pool_wait(pool_t *pool)
 {
+	worker_t *worker; 
 
+	worker = pool->pool_worker;
+	while (worker != NULL){
+		pthread_join(worker->worker_tid, NULL);
+		worker = worker->worker_next;
+	}
 }
 
 
@@ -183,6 +236,48 @@ pool_destroy(pool_t *pool)
 }
 
 
+void *test_routine(void *arg){
+	int i;
+	for (i =0 ; i < 100; i++){
+		printf("Routine %d: %d\n",*(int *)(arg), i);
+		sleep(0.05);
+	}
+	printf("Routine %d finished.\n", *(int *)(arg));
+
+
+// TODO timedwait for pthreads.
+// TODO create a wrapper function that all worker threads call. This wrapper
+// will have an arg that contains important pool information, like 
+// references to the conditions and mutexes, as well as the amount of time
+// before the thread should die.
+// The wrapper is executed by the thread upon thread start.
+// the wrapper then calls the actual work.
+// Once the work is complete, then the work returns
+// and we're in the wrapper again. Here we can do
+// thread-realted management, such as call 
+// pthread_cond_timedwait.
+
+// 	pthread_cond_timedwait(NULL,NULL,);
+// 	pthread_cond_t *restrict cond,
+// pthread_mutex_t *restrict mutex,
+// const struct timespec *restrict abstime
+
+	return NULL;
+}
+
+
+
+
 int main(){
+	int arg1,arg2;
+	pool_t *pool;
+
+	arg1 = 1;
+	arg2 = 2;
+	pool = pool_create(2, 10, 5000, NULL);
+	pool_queue(pool,test_routine, &arg1);
+	pool_queue(pool,test_routine, &arg2);
+	pool_wait(pool);
+
 
 }
