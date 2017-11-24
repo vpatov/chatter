@@ -27,6 +27,13 @@ struct active {
 	pthread_t active_tid;				/* active thread id */
 };
 
+typedef struct worker worker_t;
+struct worker {
+	worker_t *worker_next;
+	uint8_t is_active;
+	pthread_t worker_tid; 	
+};
+
 
 
 typedef struct th_pool pool_t;
@@ -37,7 +44,7 @@ struct th_pool {
 	pthread_cond_t pool_busycv; 		/* synchronization in pool_queue */
 	pthread_cond_t pool_workcv; 		/* synchronization with workers */
 	pthread_cond_t pool_waitcv; 		/* synchronization in pool_wait() */
-	active_t *pool_active; 				/* list of threads performing work */
+	worker_t *pool_worker; 				/* list of threads performing work */
 	job_t *job_head;					/* head of FIFO job queue */
 	job_t *job_tail; 					/* tail of FIFO job queue */
 	pthread_attr_t pool_attr; 			/* attributes of the workers */

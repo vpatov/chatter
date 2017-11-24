@@ -46,7 +46,7 @@ pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 	// 	pthread_cond_t pool_waitcv; 		/* synchronization in pool_wait() */
 
 	//initialize the active pool list.
-	pool->pool_active = NULL;
+	pool->pool_worker = NULL;
 
 	//initialize the queue of jobs.
 	pool->job_head = NULL;
@@ -75,7 +75,7 @@ pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 // 	pthread_cond_t pool_busycv; 		/* synchronization in pool_queue */
 // 	pthread_cond_t pool_workcv; 		/* synchronization with workers */
 // 	pthread_cond_t pool_waitcv; 		/* synchronization in pool_wait() */
-// 	active_t *pool_active; 				/* list of threads performing work */
+// 	worker_t *pool_worker; 				/* list of threads performing work */
 // 	job_t *job_head;					/* head of FIFO job queue */
 // 	job_t *job_tail; 					/* tail of FIFO job queue */
 // 	pthread_attr_t pool_attr; 			/* attributes of the workers */
@@ -86,6 +86,15 @@ pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 // 	uint16_t pool_nthreads; 			/* current number of worker threads */
 // 	uint16_t pool_idle; 				/* number of idle workers */
 // };
+
+
+// typedef struct worker worker_t;
+// struct worker {
+// 	worker_t *worker_next;
+// 	uint8_t is_active;
+// 	pthread_t worker_tid; 	
+// };
+
 
 }
 
@@ -110,6 +119,10 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 {
 	int r = 0;
 	job_t *job;
+	worker_t *worker;
+
+
+	// ----------- Enqueue a work request to the thread pool job queue. ----------- //
 
 	//allocate memory for the job
 	job = malloc(sizeof(job_t));
@@ -128,7 +141,17 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 	}
 	pool->job_tail = job;
 
-	// TODO the rest of this shit
+// 	// ----------- If there are idle worker threads, awaken one to perform the job.
+// * Else if the maximum number of workers has not been reached,
+// * create a new worker thread to perform the job.
+// * Else just return after adding the job to the queue;
+
+	if (pool->pool_idle){
+		worker = pool->pool_worker;
+		while (worker != NULL && worker->is_active){ 		//boolean expression short-circuit evaluation prevents dereference of NULL pointer
+			worker = worker->worker_next;
+		}
+	}
 
 	return r;
 }
