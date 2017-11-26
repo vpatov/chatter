@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define NL "\n"
 
@@ -17,7 +18,7 @@
 #define KBWN "\033[0;33m"
 
 static inline unsigned int thread_id() {
-    return (unsigned int)getpid();
+    return (unsigned long)pthread_self();
 }
 
 #ifndef DEBUG
