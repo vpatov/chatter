@@ -13,11 +13,26 @@ int global_sum = 0;
 
 thread_list_t *thread_list = NULL;
 
+pthread_mutexattr_t work_mutex_attr;
+pthread_mutex_t work_mutex;
 
+
+void init_worker_mutex(){
+	pthread_mutexattr_settype(&work_mutex_attr, PTHREAD_MUTEX_ERRORCHECK);
+	pthread_mutex_init(&work_mutex,&work_mutex_attr); 
+}
 
 void 
 thread_cleanup()
 {
+	int ret;
+	ret = pthread_mutex_trylock(&work_mutex);
+	if (ret < 0){
+		error("pthread_mutex_trylock: %s",strerror(errno));
+	}
+	else {
+		pthread_mutex_unlock(&work_mutex);
+	}
 	info("Thread is leaving town.");
 	pthread_exit(0);
 }
@@ -39,7 +54,7 @@ pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 	int r;
 	pool_t 	*pool;
 
-	signal(SIGINT,thread_cleanup);
+	signal(SIGALRM,thread_cleanup);
 
 	info("Creating a threadpool with min: %u, max: %u, linger: %u",min,max,linger);
 	pool = malloc(sizeof(pool_t));
@@ -213,14 +228,14 @@ void add_to_thread_list(pthread_t *thread){
 }
 
 void
-get_expiration_time(struct timespec *abstime, uint16_t pool_linger)
+get_expiration_time(struct timespec *abstime, uint16_t ms_delay)
 {
 	struct timeval current_time;
 
 	gettimeofday(&current_time,NULL);
-	abstime->tv_sec = current_time.tv_sec + (pool_linger / 1000);				//convert milliseconds to seconds
+	abstime->tv_sec = current_time.tv_sec + (ms_delay / 1000);				//convert milliseconds to seconds
 	abstime->tv_nsec = (current_time.tv_usec * 1000) + 							//convert remainder to nanoseconds
-		((pool_linger % 1000) * 1000 * 1000);
+		((ms_delay % 1000) * 1000 * 1000);
 
 }
 
@@ -256,6 +271,7 @@ void
 			}
 			pthread_mutex_unlock(&pool->pool_mutex);							//other threads need to do work!
 			thread_arg.arg = job->job_arg;										//populate the thread_arg, which will hold pool and job_arg
+			debug("taking on job at %p", job);
 			job->job_func(&thread_arg);											//call the work function of interest.
 			free(job);															//upon work completion, free the job struct.
 			success("job_func has returned inside of do_work.");
@@ -407,15 +423,34 @@ pool_wait(pool_t *pool)
 void
 pool_destroy(pool_t *pool)
 {
+	int ret, attempts;
 	void *save;
 	worker_t *worker;
 	job_t *job;
 	thread_list_t *node;
+	struct timespec abstime;
 
-	pthread_mutex_lock(&pool->pool_mutex);
+
+	node = thread_list;
+	while (node != NULL){
+		attempts = 0;
+		do {
+			// if (attempts == 3){
+			// 	pthread_kill(node->thread,SIGKILL);
+			// 	break;
+			// }
+			pthread_kill(node->thread,SIGALRM);
+			get_expiration_time(&abstime,1000);
+			ret = pthread_timedjoin_np(node->thread,NULL,&abstime);
+			attempts++;
+		} while(ret != 0);
+		node = node->next;
+	}
+
+	debug("All threads joined in pool_destroy");
+	
 	worker = pool->pool_worker;
 	while (worker != NULL){
-		pthread_kill(worker->worker_tid,SIGINT);
 		save = worker;
 		worker = worker->worker_next;
 		free(save);
@@ -426,12 +461,10 @@ pool_destroy(pool_t *pool)
 		job = job->job_next;
 		free(save);
 	}
-	pthread_mutex_unlock(&pool->pool_mutex);
 	free(pool);
 
 	node = thread_list;
 	while (node != NULL){
-		pthread_join(node->thread,NULL);
 		save = node;
 		node = node->next;
 		free(save);
@@ -478,16 +511,16 @@ void *test_routine(void *arg){
 
 
 void *test_routine2(void *arg){
-	thread_arg_t *thread_arg = arg;
-	pool_t *pool = thread_arg->pool;
+	// thread_arg_t *thread_arg = arg;
+	// pool_t *pool = thread_arg->pool;
 
 	int i,x;
 	x = 5;
 	for (i = 0; i < 10000000; i++){
 		if (i % 10000 == 0){
-			pthread_mutex_lock(&pool->pool_mutex);
+			pthread_mutex_lock(&work_mutex);
 			global_sum += 1;
-			pthread_mutex_unlock(&pool->pool_mutex);
+			pthread_mutex_unlock(&work_mutex);
 		}
 		x = (sqrt(i * x));
 	}
@@ -501,19 +534,30 @@ int main(){
 	int i,a;
 	pool_t *pool;
 
+	init_worker_mutex();
 
-	for (a = 0; a < 7; a++){
-		pool = pool_create(5, 70, 300, NULL);
-		for (i = 0; i < 300; i++){
-			args[i] = i;
-			pool_queue(pool,test_routine2, &args[i]);
+	// for (a = 0; a < 1; a++){
+	// 	pool = pool_create(5, 70, 300, NULL);
+	// 	for (i = 0; i < 300; i++){
+	// 		args[i] = i;
+	// 		pool_queue(pool,test_routine2, &args[i]);
 
-		}
-		sleep(7);
-		pool_destroy(pool);
-		info("Pool has been destroyed by pool_destroy.");
-		info("global_sum is :%d", global_sum);
+	// 	}
+	// 	sleep(4);
+	// 	pool_destroy(pool);
+	// 	info("Pool has been destroyed by pool_destroy.");
+	// 	info("global_sum is :%d", global_sum);
+	// }
+
+	pool = pool_create(5, 70, 300, NULL);
+	for (i = 0; i < 300; i++){
+		args[i] = i;
+		pool_queue(pool,test_routine2, &args[i]);
+
 	}
+	pool_wait(pool);
+	info("global_sum is :%d", global_sum);
+
 	exit(0);
 
 }

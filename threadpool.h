@@ -1,6 +1,8 @@
 #ifndef THREADPOOL_H
 #define THREADPOOL_H
 
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>

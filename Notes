@@ -3,4 +3,4 @@ Notes
 
 1) The pool struct has a field that describes the minimum number of threads it can have. Do I start up these threads upon pool creation? Or is it okay if I wait until jobs are queued such that those threads are created out of necessity? 
 
-2) I send my threads a int signal, that they handle and call pthread_exit. For some reason they don't all wanna quit after that... They all seem to be stuck waiting for a lock. But why?
+2) I send my threads a int signal, that they handle and call pthread_exit. For some reason they don't all wanna quit after that... They all seem to be stuck waiting for a lock. But why? Perhaps instead of using signals to kill the threads, set some global flag equal to (die). What you have is almost working. Just gotta get rid of those last deadlocks.
