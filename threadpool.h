@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <math.h>
+#include <signal.h>
 
 /* pool_flags */
 #define POOL_WAIT 0x01 					/* waiting in thr_pool_wait() */
@@ -65,9 +66,17 @@ struct th_pool {
 	uint16_t pool_idle; 				/* number of idle workers */
 };
 
+typedef struct thread_arg thread_arg_t;
+struct thread_arg {
+	pool_t *pool;
+	void *arg;
+};
 
-
-
+typedef struct thread_list thread_list_t;
+struct thread_list {
+	pthread_t thread;
+	thread_list_t *next;
+};
 
 /* Function Prototypes */
 pool_t* 	pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr);
@@ -77,5 +86,6 @@ void		pool_destroy(pool_t *pool);
 void 		get_expiration_time(struct timespec *abstime, uint16_t pool_linger);
 void		*do_work(void *arg);
 job_t 		*find_work(pool_t *pool);
+void 		add_to_thread_list(pthread_t *thread);
 
 #endif

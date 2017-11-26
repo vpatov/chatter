@@ -9,6 +9,18 @@
 pool_t *global_pool_head;
 pool_t *global_pool_tail;
 
+int global_sum = 0;
+
+thread_list_t *thread_list = NULL;
+
+
+
+void 
+thread_cleanup()
+{
+	info("Thread is leaving town.");
+	pthread_exit(0);
+}
 
 /**
 * Creates a thread pool. More than one pool can be created.
@@ -21,13 +33,15 @@ pool_t *global_pool_tail;
 * NULL is returned with errno set to the error code.
 */
 
-
 pool_t*
 pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 {
 	int r;
 	pool_t 	*pool;
 
+	signal(SIGINT,thread_cleanup);
+
+	info("Creating a threadpool with min: %u, max: %u, linger: %u",min,max,linger);
 	pool = malloc(sizeof(pool_t));
 	if (global_pool_head == NULL){
 		global_pool_head = pool;
@@ -158,7 +172,11 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 			debug("%s",strerror(errno));
 			return r;
 		}
+
 		else {	
+
+			add_to_thread_list(&thread);										//add the thread to the linked list of threads
+
 			pool->pool_nthreads++;												//increment the number of threads
 
 			worker = malloc(sizeof(worker_t));									//allocate memory for a new worker_t
@@ -185,6 +203,14 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 }
 
 
+void add_to_thread_list(pthread_t *thread){
+	thread_list_t *node;
+
+	node = malloc(sizeof(thread_list_t));
+	node->thread = *thread;
+	node->next = thread_list;
+	thread_list = node;
+}
 
 void
 get_expiration_time(struct timespec *abstime, uint16_t pool_linger)
@@ -199,21 +225,24 @@ get_expiration_time(struct timespec *abstime, uint16_t pool_linger)
 }
 
 
-
 void
 *do_work(void *arg)
 {
 	int r;
-	uint8_t restart_time;
+	uint8_t restart_time, is_idle;
 	pool_t *pool;
 	job_t *job;
-
+	thread_arg_t thread_arg;
 	struct timespec abstime;													//abs_time contains seconds and nanoseconds (10^1, 10^-9)
 
 
 	pool = arg;
 	job = NULL;
 	restart_time = 1;
+	is_idle = 0;
+	thread_arg.pool = pool;
+
+
 
 	while (1){
 		pthread_mutex_lock(&pool->pool_mutex);									//lock before reading from job queue
@@ -221,23 +250,31 @@ void
 		
 		if (job != NULL){														//if we find a job
 			restart_time = 1;													//make sure we restart the timer later
+			if (is_idle){														//we found a job, we're no longer idle
+				pool->pool_idle--;												//decrement the pool_idle counter
+				is_idle = 0;
+			}
 			pthread_mutex_unlock(&pool->pool_mutex);							//other threads need to do work!
-			job->job_func(job->job_arg);								//call the work function of interest.
+			thread_arg.arg = job->job_arg;										//populate the thread_arg, which will hold pool and job_arg
+			job->job_func(&thread_arg);											//call the work function of interest.
 			free(job);															//upon work completion, free the job struct.
 			success("job_func has returned inside of do_work.");
 		}
-		else {
+		else {																	//if we don't find a job
 			if (restart_time){													//if we are supposed to restart the timer
 				get_expiration_time(&abstime,pool->pool_linger);				//get the absolute time of timeout
 				restart_time = 0;												//turn off restart flag
 			}
 
-			pool->pool_idle++;													//this thread is about to be waiting, it is idle
+			if (is_idle == 0){														//if we were not already idle, increment the idle counter
+				pool->pool_idle++;												//and set is_idle to true. This way, if we were already idle
+				is_idle = 1;													//we wouldn't double increment the pool_idle counter.
+			}
 
 			r = pthread_cond_timedwait(&pool->pool_busycv,						//atomically release the lock, and block until timeout 
 				&pool->pool_mutex,&abstime);									//or signal on cond.
 																	
-			pool->pool_idle--;													//a thread is only idle if it is waiting in timedwait
+
 			
 			if (r == ETIMEDOUT){												//if we ran out of time, the thread should exit, unless
 																				//there are too few threads
@@ -263,7 +300,8 @@ void
 						else {
 							pool->pool_worker = cursor->worker_next;			//if at the front, just cut the front.
 						}
-						debug("Freeing worker %p with tid: %lx",cursor, cursor->worker_tid);
+						// debug("Freeing worker %p with tid: %lx",
+						// 	cursor, cursor->worker_tid);
 						free(cursor);											//once upon a time we malloc'ed it, now we free it.
 						break;													//break because we don't need to iterate anymore.
 					}
@@ -271,13 +309,16 @@ void
 					cursor = cursor->worker_next;
 				}
 
-				pool->pool_nthreads--;
+				pool->pool_nthreads--;											//decrement the amount of nthreads
+				pool->pool_idle--;												//before it expired, it was idle, by definition of our thread pool
+
 
 
 				debug("This thread can't find any more jobs, "
 					"and time has run out -- exiting.");
 
 				pthread_mutex_unlock(&pool->pool_mutex);
+				pthread_exit(0);
 				return NULL;													//haven't though of a use for this return value yet.
 			}
 
@@ -326,56 +367,38 @@ job_t
 * @param pool A thread pool identifier returned from pool_create().
 **/
 
-// void
-// pool_wait(pool_t *pool)
-// {
-// 	job_t *job;
-// 	uint8_t double_checking;
-
-// 	double_checking = 0;
-// 	while (1){
-// 		pthread_mutex_lock(&pool->pool_mutex);
-// 		job = pool->job_head;
-// 		if (job == NULL){
-// 			if (double_checking){
-// 				debug("Main thread's pool_wait has double-checked, all jobs are done. Goodbye!");
-// 				exit(0);
-// 			}
-// 			double_checking = 1;
-// 			debug("Main thread's pool_wait found no jobs in the queue. Sleeping for 3 seconds before checking again...");
-// 			pthread_mutex_unlock(&pool->pool_mutex);
-// 			sleep(3);
-// 		}
-// 		else {
-// 			debug("Main thread's pool_wait found jobs still in queue. Sleeping for 10 seconds before checking again...");
-// 			pthread_mutex_unlock(&pool->pool_mutex);
-// 			sleep(10);
-// 		}
-// 	}
-// }
-
-
-
-
-void 
+void
 pool_wait(pool_t *pool)
 {
-	worker_t *worker;
-	void *retval;
-	// pthread_mutex_lock(&pool->pool_mutex);
-	worker = pool->pool_worker;
-	// pthread_mutex_unlock(&pool->pool_mutex);
-	while(worker != NULL){
+	uint8_t double_checking;
 
-		debug("Waiting for worker: %p with tid: %lx ",worker, worker->worker_tid);
-		pthread_join(worker->worker_tid,&retval);
-		debug("Joined worker: %p with tid: %lx", worker, worker->worker_tid);
-		// pthread_mutex_lock(&pool->pool_mutex);
-		worker = worker->worker_next;
-		// pthread_mutex_unlock(&pool->pool_mutex);
+	double_checking = 0;
+	while (1){
+		pthread_mutex_lock(&pool->pool_mutex);
+		if (pool->pool_idle == pool->pool_nthreads && pool->job_head == NULL){
+			if (double_checking){
+				debug("Main thread's pool_wait has double-checked, all queued jobs are done. Goodbye!");
+				return;
+			}
+			double_checking = 1;
+			debug("Main thread's pool_wait found no threads/jobs. Sleeping for 3 seconds before checking again...");
+			pthread_mutex_unlock(&pool->pool_mutex);
+			sleep(3);
+		}
+		else {
+			debug("pool_idle :%u, nthreads: %u, job_head: %p", pool->pool_idle, pool->pool_nthreads, pool->job_head);
+			debug("Main thread's pool_wait found threads/jobs. Sleeping for 5 seconds before checking again...");
+			pthread_mutex_unlock(&pool->pool_mutex);
+			sleep(5);
+		}
 	}
-
 }
+
+
+
+
+
+
 /**
 * Cancel all queued jobs and destroy the pool. Worker threads that are
 * actively processing tasks are cancelled.
@@ -384,6 +407,37 @@ pool_wait(pool_t *pool)
 void
 pool_destroy(pool_t *pool)
 {
+	void *save;
+	worker_t *worker;
+	job_t *job;
+	thread_list_t *node;
+
+	pthread_mutex_lock(&pool->pool_mutex);
+	worker = pool->pool_worker;
+	while (worker != NULL){
+		pthread_kill(worker->worker_tid,SIGINT);
+		save = worker;
+		worker = worker->worker_next;
+		free(save);
+	}
+	job = pool->job_head;
+	while (job != NULL){
+		save = job;
+		job = job->job_next;
+		free(save);
+	}
+	pthread_mutex_unlock(&pool->pool_mutex);
+	free(pool);
+
+	node = thread_list;
+	while (node != NULL){
+		pthread_join(node->thread,NULL);
+		save = node;
+		node = node->next;
+		free(save);
+	}
+	thread_list = NULL;
+
 
 }
 
@@ -423,36 +477,43 @@ void *test_routine(void *arg){
 }
 
 
+void *test_routine2(void *arg){
+	thread_arg_t *thread_arg = arg;
+	pool_t *pool = thread_arg->pool;
+
+	int i,x;
+	x = 5;
+	for (i = 0; i < 10000000; i++){
+		if (i % 10000 == 0){
+			pthread_mutex_lock(&pool->pool_mutex);
+			global_sum += 1;
+			pthread_mutex_unlock(&pool->pool_mutex);
+		}
+		x = (sqrt(i * x));
+	}
+	return NULL;
+}
 
 
 
 int main(){
 	int args[10];
-	int i;
+	int i,a;
 	pool_t *pool;
 
 
-	
-	pool = pool_create(3, 50, 100, NULL);
-	for (i = 0; i < 5; i++){
-		args[i] = i;
-		pool_queue(pool,test_routine, &args[i]);
+	for (a = 0; a < 7; a++){
+		pool = pool_create(5, 70, 300, NULL);
+		for (i = 0; i < 300; i++){
+			args[i] = i;
+			pool_queue(pool,test_routine2, &args[i]);
 
+		}
+		sleep(7);
+		pool_destroy(pool);
+		info("Pool has been destroyed by pool_destroy.");
+		info("global_sum is :%d", global_sum);
 	}
-
-	pool_wait(pool);
-	// while (1){
-	// 	info("Main thread:\nnumthreads: %d, idle threads: %d\n",pool->pool_nthreads,pool->pool_idle);
-
-	// 	worker_t *worker;
-	// 	i = 0;
-	// 	worker = pool->pool_worker;
-	// 	while (worker != NULL){
-	// 		info("Found worker: %d\n", i++);
-	// 		worker = worker->worker_next;
-	// 	}
-	// 	sleep(10);
-	// }
-
+	exit(0);
 
 }

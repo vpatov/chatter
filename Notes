@@ -1,0 +1,6 @@
+Notes
+==================
+
+1) The pool struct has a field that describes the minimum number of threads it can have. Do I start up these threads upon pool creation? Or is it okay if I wait until jobs are queued such that those threads are created out of necessity? 
+
+2) I send my threads a int signal, that they handle and call pthread_exit. For some reason they don't all wanna quit after that... They all seem to be stuck waiting for a lock. But why?

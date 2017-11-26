@@ -1,11 +1,11 @@
 all: server client threadpool
 
-client:
+client: client.c
 	gcc -g -Wall client.c -o client
-server:
+server: server.c
 	gcc -g -Wall server.c -o server
 
-threadpool:
+threadpool: threadpool.c
 	gcc -pthread -g -Wall threadpool.c -o threadpool -lm
 
 clean:
