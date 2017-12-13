@@ -536,19 +536,20 @@ int main(){
 
 	init_worker_mutex();
 
-	// for (a = 0; a < 1; a++){
-	// 	pool = pool_create(5, 70, 300, NULL);
-	// 	for (i = 0; i < 300; i++){
-	// 		args[i] = i;
-	// 		pool_queue(pool,test_routine2, &args[i]);
+	 for (a = 0; a < 3; a++){
+	 	pool = pool_create(5, 70, 300, NULL);
+	 	for (i = 0; i < 300; i++){
+	 		args[i] = i;
+	 		pool_queue(pool,test_routine2, &args[i]);
 
-	// 	}
-	// 	sleep(4);
-	// 	pool_destroy(pool);
-	// 	info("Pool has been destroyed by pool_destroy.");
-	// 	info("global_sum is :%d", global_sum);
-	// }
+	 	}
+	 	sleep(4);
+	 	pool_destroy(pool);
+	 	info("Pool has been destroyed by pool_destroy.");
+	 	info("global_sum is :%d", global_sum);
+	 }
 
+/*
 	pool = pool_create(5, 70, 300, NULL);
 	for (i = 0; i < 300; i++){
 		args[i] = i;
@@ -557,7 +558,7 @@ int main(){
 	}
 	pool_wait(pool);
 	info("global_sum is :%d", global_sum);
-
+*/
 	exit(0);
 
 }

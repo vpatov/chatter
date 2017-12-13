@@ -1,0 +1,4 @@
+1) Create some documentation and comment everything that you've done in threadpool.c 
+2) Consider using a different mechanism for killing threads, other than the signals you use now. You could have the threads check shared memory for a flag that tells them if they should die or not. In the wrapper for each thread, you could have an alarm go off every 250 ms that will make the thread go into the wrapper/signal handler and check its shared memory to see if it should die.
+3) Create a comprehensive state diagram for the chat client/server programs, complete with socket states, thread states, shared memory, etc. Take inspiration from the TCP state diagram. Code only after you've completed the state diagram.
+4) If you have time, create an ncurses gui. Only do this after you have fully tested your program otherwise.
