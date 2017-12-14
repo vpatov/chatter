@@ -12,6 +12,8 @@
 #include <sys/time.h>
 #include <math.h>
 #include <signal.h>
+#include <assert.h>
+#include <unistd.h>
 
 /* pool_flags */
 #define POOL_WAIT 0x01 					/* waiting in thr_pool_wait() */
