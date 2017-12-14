@@ -32,36 +32,36 @@ thread_cleanup()
 
 	// int pthread_mutex_timedlock(pthread_mutex_t *restrict mutex, const struct timespec *restrict abs_timeout); 
 
-	//debug("Calling pthread_mutex_timedlock on work_mutex");
+	debug("Calling pthread_mutex_timedlock on work_mutex");
 	ret = pthread_mutex_timedlock(&work_mutex, &lock_abstime);
 	if (ret != 0){
 		if (ret == ETIMEDOUT){
-			//debug("Caller doesn't own lock of work_mutex. Can continue exiting.");
+			debug("Caller doesn't own lock of work_mutex. Can continue exiting.");
 		}
 		else {
-			//error("pthread_mutex_timedlock of work_mutex returned a different error: %s", strerror(ret));
+			error("pthread_mutex_timedlock of work_mutex returned a different error: %s", strerror(ret));
 		}
 	}
 	else {
-		//debug("Callng pthread_mutex_unlock on work_mutex...");
+		debug("Callng pthread_mutex_unlock on work_mutex...");
 		pthread_mutex_unlock(&work_mutex);
-		//debug("pthread_mutex_unlock of work_mutex - Success!");
+		debug("pthread_mutex_unlock of work_mutex - Success!");
 	}
 
-	//debug("Calling pthread_mutex_timedlock on pool_mutex");
+	debug("Calling pthread_mutex_timedlock on pool_mutex");
 	ret = pthread_mutex_timedlock(&circular_pool_list->pool_mutex, &lock_abstime);
 	if (ret != 0){
 		if (ret == ETIMEDOUT){
-			//debug("Caller doesn't own lock of pool_mutex. Can continue exiting.");
+			debug("Caller doesn't own lock of pool_mutex. Can continue exiting.");
 		}
 		else {
-			//error("pthread_mutex_timedlock of pool_mutex returned a different error: %s", strerror(ret));
+			error("pthread_mutex_timedlock of pool_mutex returned a different error: %s", strerror(ret));
 		}
 	}
 	else {
-		//debug("Callng pthread_mutex_unlock on pool_mutex...");
+		debug("Callng pthread_mutex_unlock on pool_mutex...");
 		pthread_mutex_unlock(&circular_pool_list->pool_mutex);
-		//debug("pthread_mutex_unlock of pool_mutex- Success!");
+		debug("pthread_mutex_unlock of pool_mutex- Success!");
 	}
 
 
@@ -544,19 +544,14 @@ pool_destroy(pool_t *pool)
 	while (node != NULL){
 		attempts = 0;
 		do {
-			// if (attempts == 3){
-			// 	debug("Sending SIGKILL to thread: %lu", node->thread);
-			// 	ret = pthread_kill(node->thread,SIGKILL);
-			// 	if (ret < 0){
-			// 		warn("pthread_kill (with SIGKILL) returned non-zero.");
-			// 	}
-			// 	break;
-			// }
+			if (attempts == 2){
+				break;
+			}
 			ret = pthread_kill(node->thread,SIGALRM);
 			if (ret < 0){
 				warn("pthread_kill returned non-zero.");
 			}
-			get_expiration_time(&abstime,1000);
+			get_expiration_time(&abstime,200);
 			debug("Attempt %d\tCalling pthread_timedjoin_np on thread: %lu", attempts,node->thread);
 			ret = pthread_timedjoin_np(node->thread,NULL,&abstime);
 			attempts++;
@@ -677,9 +672,9 @@ int main(){
 
 	init_worker_mutex();
 
-	 for (a = 0; a < 2; a++){
-	 	pool = pool_create(5, 500, 300, NULL);
-	 	for (i = 0; i < 200; i++){
+	 for (a = 0; a < 1; a++){
+	 	pool = pool_create(5, 400, 300, NULL);
+	 	for (i = 0; i < 500; i++){
 	 		args[i] = i;
 	 		pool_queue(pool,test_routine2, &args[i]);
 
@@ -689,7 +684,6 @@ int main(){
 	 	info("============================== "
 	 		 "Pool has been destroyed by pool_destroy. "
 	 		 "============================");
-	 	pool_wait(pool);
 	 	info("global_sum is :%d", global_sum);
 	 }
 
@@ -703,6 +697,7 @@ int main(){
 	pool_wait(pool);
 	info("global_sum is :%d", global_sum);
 */
+	sleep(20);
 	exit(0);
 
 }
