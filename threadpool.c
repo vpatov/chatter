@@ -439,7 +439,10 @@ pool_destroy(pool_t *pool)
 			// 	pthread_kill(node->thread,SIGKILL);
 			// 	break;
 			// }
-			pthread_kill(node->thread,SIGALRM);
+			ret = pthread_kill(node->thread,SIGALRM);
+			if (ret < 0){
+				warn("pthread_kill returned non-zero.");
+			}
 			get_expiration_time(&abstime,1000);
 			ret = pthread_timedjoin_np(node->thread,NULL,&abstime);
 			attempts++;
@@ -537,7 +540,7 @@ int main(){
 	init_worker_mutex();
 
 	 for (a = 0; a < 3; a++){
-	 	pool = pool_create(5, 70, 300, NULL);
+	 	pool = pool_create(5, 50, 300, NULL);
 	 	for (i = 0; i < 300; i++){
 	 		args[i] = i;
 	 		pool_queue(pool,test_routine2, &args[i]);
