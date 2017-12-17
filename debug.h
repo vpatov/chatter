@@ -17,6 +17,10 @@
 #define KWHT "\033[1;37m"
 #define KBWN "\033[0;33m"
 
+#define i_1e3 1000
+#define i_1e6 1000000
+#define i_1e9 1000000000
+
 static inline unsigned int thread_id() {
     return (unsigned long)pthread_self();
 }

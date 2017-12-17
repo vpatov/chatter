@@ -14,14 +14,20 @@
 #include <signal.h>
 #include <assert.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 /* pool_flags */
 #define POOL_WAIT 0x01 					/* waiting in thr_pool_wait() */
 #define POOL_DESTROY 0x02				/* pool is being destroyed */
 
-
-
+typedef struct th_pool pool_t;
 typedef struct job job_t;
+typedef struct active active_t;
+typedef struct worker worker_t;
+typedef struct thread_list thread_list_t;
+typedef struct thread_arg thread_arg_t;
+
+
 struct job {
 	job_t
 	*job_next;							/* linked list of jobs */
@@ -31,21 +37,30 @@ struct job {
 
 
 
-typedef struct active active_t;
+
 struct active {
 	active_t *active_next; 				/* linked list of threads */
 	pthread_t active_tid;				/* active thread id */
 };
 
-typedef struct worker worker_t;
+
 struct worker {
 	worker_t *worker_next;
 	pthread_t worker_tid; 	
+	bool should_die;
+};
+
+
+struct thread_arg {
+	pool_t *pool;
+	pthread_t thread;
+	void *arg;
 };
 
 
 
-typedef struct th_pool pool_t;
+
+
 struct th_pool {
 	pool_t *pool_forw; 					/* circular linked list */
 	pool_t *pool_back; 					/* of all thread pools */
@@ -68,19 +83,11 @@ struct th_pool {
 	uint16_t pool_maximum;				/* max number of worker threads */
 	uint16_t pool_nthreads; 			/* current number of worker threads */
 	uint16_t pool_idle; 				/* number of idle workers */
+
+
 };
 
-typedef struct thread_arg thread_arg_t;
-struct thread_arg {
-	pool_t *pool;
-	void *arg;
-};
 
-typedef struct thread_list thread_list_t;
-struct thread_list {
-	pthread_t thread;
-	thread_list_t *next;
-};
 
 /* Function Prototypes */
 pool_t* 	pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr);
@@ -90,6 +97,6 @@ void		pool_destroy(pool_t *pool);
 void 		get_expiration_time(struct timespec *abstime, uint16_t pool_linger);
 void		*do_work(void *arg);
 job_t 		*find_work(pool_t *pool);
-void 		add_to_thread_list(pthread_t *thread);
+void 		add_to_thread_list(pool_t *pool, pthread_t *thread);
 
 #endif

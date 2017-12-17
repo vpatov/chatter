@@ -7,3 +7,11 @@
 5) Maybe threadpool is simpler than you're making it - tell the threads to clean up,  but don't be so forceful with them. focus more on them performing cleanup, and then deallocating their resources, and your references to it. Also be sure to destroy the mutex that they are pining after. Idea!!! Destroy the mutex before you join the threads? Probably problematic
 
 Dont forget about the segfault being caused by timedlock call on global_circular list which gets freed...
+
+
+
+
+
+1) Dont wait on each thread
+2) when pool_destroy is called, dont kill them immediately, just make sure they don't take anymore work. The worker_pool won't be used for 
+any threads that have infinite loops
