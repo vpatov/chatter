@@ -1,23 +1,59 @@
 
-client: client.o threadpool.o
-	gcc -pthread -g -Wall client.c -o client client.o threadpool.o -lm
-server: server.o threadpool.o
-	gcc -pthread -g -Wall server.c -o server sever.o threadpool.o -lm
 
-# concurrent.o: concurrent.c
-# 	gcc -pthread -g -Wall -c concurrent.c 
+CXX = gcc
+CXXFLAGS = -Wall -g -pthread
 
-client.o: client.c
-	gcc -c client.c
+# ****************************************************
+# Targets needed to bring the executable up to date
 
-server.o: server.c
-	gcc -c server.c
+all: server client
 
-threadpool.o: threadpool.c
-	gcc -pthread -g -Wall -c threadpool.c -lm
+server: server.o threadpool.o 
+	$(CXX) $(CXXFLAGS) -o server server.o threadpool.o -lm
 
-# threadpool.o: threadpool.c 
-# 	gcc -pthread -g -Wall -c threadpool.c -lm 
+server.o: server.c threadpool.h
+	$(CXX) $(CXXFLAGS) -c server.c
 
-clean:
-	rm server client threadpool.o concurrent.o 
+client: client.o threadpool.o 
+	$(CXX) $(CXXFLAGS) -o client client.o threadpool.o -lm
+
+client.o: client.c threadpool.h
+	$(CXX) $(CXXFLAGS) -c client.c
+
+threadpool.o: threadpool.h
+
+
+
+
+
+
+
+
+# all: client server
+
+# client: 
+# 	gcc -pthread -Wall -g client.c -o client.o threadpool.o -lm
+# server: 
+# 	gcc -Wall -g -pthread server.c -o server threadpool.o -lm
+
+
+# # concurrent.o: concurrent.c
+# # 	gcc -pthread -g -Wall -c concurrent.c 
+
+# client.o: client.c
+# 	gcc -c client.c
+
+# server.o: server.c
+# 	gcc -c server.c
+
+# threadpool.o: threadpool.c
+# 	gcc -c threadpool.c
+
+# # threadpool.o: threadpool.c 
+# # 	gcc -pthread -g -Wall -c threadpool.c -lm 
+
+# clean:
+# 	rm server client threadpool.o server.o client.o
+
+
+
