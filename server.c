@@ -15,10 +15,14 @@ MOTD			Message to display to the client when they connect.
 #include <netinet/ip.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 #include "threadpool.h"
 #include "debug.h"
 
-#define SA struct sockaddr
+#define SA 			struct sockaddr
+#define SAin 		struct sockaddr_in
+#define MAX_RECV	1024
+#define MAX_SEND	1024
 
 const char* help_message = 	"Usage:\n./server [-he] PORT_NUMBER MOTD\n\n"
 							"-e\t\t\tEcho messages received on server's stdout.\n"
@@ -26,6 +30,12 @@ const char* help_message = 	"Usage:\n./server [-he] PORT_NUMBER MOTD\n\n"
 							"PORT_NUMBER\t\tPort number to listen on. (Must be non-zero)\n"
 							"MOTD\t\t\tMessage to display to the client when they connect.\n";
 
+const char* aloha = 	"ALOHA!";
+const char* ahola = 	"!AHOLA";
+const char* iam =		"IAM";
+const char* iamnew = 	"IAMNEW";
+const char* newpass = 	"NEWPASS";
+const char* err =		"ERR";
 
 bool echo_mode = false;
 int server_port;
@@ -73,14 +83,14 @@ void spawn_echo_thread(){
 }
 
 
-void spawn_login_thread(struct sockaddr_in *client_addr){
-	int r;
-	pthread_t thread;
-	pthread_attr_t attr;
+// void spawn_login_thread(int connfd){
+// 	int r;
+// 	pthread_t thread;
+// 	pthread_attr_t attr;
 
-	pthread_attr_init(&attr);
-	pthread_create(&thread,&attr,login_thread_func,client_addr);				
-}
+// 	pthread_attr_init(&attr);
+// 	pthread_create(&thread,&attr,login_thread_func,connfd);				
+// }
 
 
 
@@ -101,7 +111,33 @@ C > S | IAM <name> \r\n
 
 //should receive connected socket as argument.
 void *login_thread_func(void *arg){
-	
+	thread_arg_t *thread_arg = arg;
+	int connfd;
+	char recvbuff[MAX_RECV];
+	char sendbuff[MAX_SEND];
+
+	connfd = *(int*)(thread_arg->arg);
+
+	printf("Waiting to receive: %d\n", connfd);
+
+	//Receive first ALOHA! from client
+	recv(connfd,recvbuff,MAX_RECV,0);
+
+
+	//Received something other than "ALOHA!", so send an error.
+	if (strcmp(recvbuff,aloha)){
+
+		snprintf(sendbuff,MAX_SEND,"%s: Expected \"%s\" to be first message upon connection.\r\n", err, aloha);
+		send(connfd,sendbuff,strlen(sendbuff),0);
+		close(connfd);
+		return NULL;
+	}
+
+	else {
+		info("aloha received.");
+	}
+
+	return NULL;
 
 }
 
@@ -109,7 +145,7 @@ void *login_thread_func(void *arg){
 void
 accept_connections()
 {
-	int listenfd, connfd;
+	int listenfd, *connfd;
 	void *err;
 	struct sockaddr_in listen_sa, *conn_sa;
 	socklen_t listen_addrlen, conn_addrlen;
@@ -126,21 +162,25 @@ accept_connections()
 
 	listen(listenfd,50);
 
+	// block on accept() - that's okay
 	while(true){
 		memset(client_ip,0,INET_ADDRSTRLEN);
 		conn_sa = calloc(1,sizeof(*conn_sa));
 		conn_addrlen = sizeof(conn_sa);
-		connfd = accept(listenfd,(SA *)conn_sa,&conn_addrlen);
 
+		//despite the fact that the connection socket descriptor is just 
+		//an int,and doesn't absolutely need to be dynamically allocated,
+		//I am doing so for the sake of consistency. The alternative is 
+		//to cast to it to a void pointer which seems hacky.
+		connfd = malloc(sizeof(int));
+
+
+		*connfd = accept(listenfd,(SA *)conn_sa,&conn_addrlen);
 
 		inet4_ntop(client_ip,conn_sa->sin_addr.s_addr);
 		info("Accepted a client connection: %s", client_ip);
-		info("Spawning login thread...");
-		
-		spawn_login_thread(conn_sa);
-		char data[10] = "hellothere";
-		send(connfd,data,10,0);
-
+		info("Spawning login thread...");	
+		pool_queue(threadpool,login_thread_func,connfd);
 	}
 }
 
@@ -153,11 +193,8 @@ void
 server_init()
 {
 	output = stdout;
-
 	threadpool = pool_create(2,4,500,NULL);
-
     info("Starting server. Port: %d", server_port);
-
 }
 
 /* 
@@ -196,5 +233,4 @@ int main(int argc, char **argv){
 	parse_args(argc,argv);
     server_init();
     accept_connections();
-
 }

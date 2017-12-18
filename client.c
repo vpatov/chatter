@@ -51,7 +51,11 @@ connect_to_server()
 
 	char data[100];
 
-	recv(server_connfd, data, 100,0);
+	// recv(server_connfd, data, 100,0);
+	snprintf(data,100,"notaloha");
+	send(server_connfd,data,100,0);
+
+	recv(server_connfd,data,100,0);
 	printf("%s\n",data);
 }
 

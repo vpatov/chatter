@@ -407,7 +407,7 @@ void
 			}
 			else if (r == 0){
 
-				 debug("We have successfully acquired the lock.");
+				//debug("We have successfully acquired the lock.");
 				pthread_mutex_unlock(&pool->pool_mutex);							//we acquire the lock upon return from waiting, so release it.
 																					//even though we are about to acquire it again, it is important to
 																					//release it here so that we don't double lock, and thus block.
