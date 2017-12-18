@@ -14,6 +14,7 @@ MOTD			Message to display to the client when they connect.
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include <unistd.h>
+#include <stdio.h>
 #include "threadpool.h"
 #include "debug.h"
 
@@ -29,7 +30,12 @@ const char* help_message = 	"Usage:\n./server [-he] PORT_NUMBER MOTD\n\n"
 bool echo_mode = false;
 int server_port;
 char *motd;
+FILE *output;
 
+pool_t *threadpool;
+
+void spawn_login_thread();
+void *login_thread_func(void *arg);
 /*
 
 // All pointers to socket address structures are often cast to pointers
@@ -62,12 +68,43 @@ inet4_ntop(char *dst, unsigned int addr)
     return dst;
 }
 
-
-void
-parse_args()
-{
+void spawn_echo_thread(){
 
 }
+
+
+void spawn_login_thread(struct sockaddr_in *client_addr){
+	int r;
+	pthread_t thread;
+	pthread_attr_t attr;
+
+	pthread_attr_init(&attr);
+	pthread_create(&thread,&attr,login_thread_func,client_addr);				
+}
+
+
+
+
+
+// TODO 1) handle this login protocol between client and server.
+// TODO 2) Create the shared data structures
+// TODO 3) Try to create a generic enforcement of the ALOHA protocol.
+// TODO 4) Related to #2 - check to make sure that no user with given name exists already.
+// TODO 5) In chat rooms, assign each different user a unique color.
+/*
+C > S | ALOHA! \r\n
+C < S | !AHOLA \r\n
+C > S | IAM <name> \r\n
+# <name> is user's name
+# Example: IAM cse320 \r\n
+*/
+
+//should receive connected socket as argument.
+void *login_thread_func(void *arg){
+	
+
+}
+
 
 void
 accept_connections()
@@ -92,20 +129,17 @@ accept_connections()
 	while(true){
 		memset(client_ip,0,INET_ADDRSTRLEN);
 		conn_sa = calloc(1,sizeof(*conn_sa));
-		// conn_addrlen = calloc(1,sizeof(conn_addrlen));
+		conn_addrlen = sizeof(conn_sa);
 		connfd = accept(listenfd,(SA *)conn_sa,&conn_addrlen);
 
 
-		// TODO for some reason the first time I call inet4_ntop, it just gets 0 as the address.
-
-		printf("conn_sa->sin_addr: %u\n", conn_sa->sin_addr.s_addr);
 		inet4_ntop(client_ip,conn_sa->sin_addr.s_addr);
-
-		printf("Accepted a client: %s\n", client_ip);
+		info("Accepted a client connection: %s", client_ip);
+		info("Spawning login thread...");
 		
+		spawn_login_thread(conn_sa);
 		char data[10] = "hellothere";
 		send(connfd,data,10,0);
-		
 
 	}
 }
@@ -118,6 +152,11 @@ accept_connections()
 void 
 server_init()
 {
+	output = stdout;
+
+	threadpool = pool_create(2,4,500,NULL);
+
+    info("Starting server. Port: %d", server_port);
 
 }
 
@@ -126,9 +165,8 @@ server_init()
 	https://stackoverflow.com/a/24479532/3664123
 */
 
-int main(int argc, char **argv){
+void parse_args(int argc, char** argv){
 	int opt;
-    
 
     while ((opt = getopt(argc, argv, "eh")) != -1) {
         switch (opt) {
@@ -152,9 +190,11 @@ int main(int argc, char **argv){
     	fprintf(stderr,"%s",help_message);
     	exit(EXIT_FAILURE);
     }
+}
 
-    info("Starting server. Port: %d", server_port);
-
+int main(int argc, char **argv){
+	parse_args(argc,argv);
+    server_init();
     accept_connections();
 
 }

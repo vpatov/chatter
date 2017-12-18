@@ -17,6 +17,12 @@
 #define KWHT "\033[1;37m"
 #define KBWN "\033[0;33m"
 
+#define INFO_COLOR 		"\x1B[1;34m"
+#define ERROR_COLOR		"\x1B[1;31m"
+#define PRIVATE_COLOR	"\x1B[1;35m"	
+#define DEFAULT_COLOR	"\x1B[0m"	
+
+
 #define i_1e3 1000
 #define i_1e6 1000000
 #define i_1e9 1000000000

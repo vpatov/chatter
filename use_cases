@@ -1,0 +1,29 @@
+
+C > S | ALOHA! \r\n
+C < S | !AHOLA \r\n
+C > S | IAMNEW <name> \r\n
+C < S | HINEW <name> \r\n
+# Client prompts user for password
+C > S | NEWPASS <password> \r\n
+# On successful user creation
+C < S | HI <name> \r\n
+
+
+C > S | ALOHA! \r\n
+C < S | !AHOLA \r\n
+C > S | IAMNEW <name> \r\n
+# User name does exist in the user list/database
+# Reject the connection, and close.
+C < S | ERR 01 SORRY <name> \r\n
+C < S | BYE \r\n
+
+
+C > S | ALOHA! \r\n
+C < S | !AHOLA \r\n
+C > S | IAMNEW <name> \r\n
+C < S | HINEW <name> \r\n
+# Client prompts user for password
+C > S | NEWPASS <password> \r\n
+# Failed request; Password not valid
+C < S | ERR 61 <message> \r\n
+C < S | BYE \r\n

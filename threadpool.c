@@ -629,7 +629,7 @@ void *test_routine2(void *arg){
 
 
 
-int main(){
+int test_threadpool(){
 	int i,a;
 	pool_t *pool;
 
@@ -677,6 +677,6 @@ int main(){
 	 }
 
 
-	exit(0);
+	return 0;
 
 }

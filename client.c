@@ -8,15 +8,32 @@
 
 #define SA struct sockaddr
 
+void connect_to_server();
 
-int main(){
+int server_connfd;
+struct sockaddr_in server_sa;
+socklen_t server_addrlen;
 
-	int server_connfd, err;
-	struct sockaddr_in server_sa;
+
+// TODO 1) handle this login protocol between client and server.
+// TODO 2) Create the shared data structures
+// TODO 3) Try to create a generic enforcement of the ALOHA protocol.
+// TODO 4) Client: parse command line args
+/*
+C > S | ALOHA! \r\n
+C < S | !AHOLA \r\n
+C > S | IAM <name> \r\n
+# <name> is user's name
+# Example: IAM cse320 \r\n
+*/
 
 
-	socklen_t server_addrlen;
 
+void
+connect_to_server()
+{
+
+	int err;
 
 	server_connfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -36,6 +53,12 @@ int main(){
 
 	recv(server_connfd, data, 100,0);
 	printf("%s\n",data);
+}
+
+
+int main(){
+
+	connect_to_server();
 
 
 }
