@@ -1,17 +1,18 @@
-1) Create some documentation and comment everything that you've done in threadpool.c 
-2) Consider using a different mechanism for killing threads, other than the signals you use now. You could have the threads check shared memory for a flag that tells them if they should die or not. In the wrapper for each thread, you could have an alarm go off every 250 ms that will make the thread go into the wrapper/signal handler and check its shared memory to see if it should die.
-3) Create a comprehensive state diagram for the chat client/server programs, complete with socket states, thread states, shared memory, etc. Take inspiration from the TCP state diagram. Code only after you've completed the state diagram.
-4) If you have time, create an ncurses gui. Only do this after you have fully tested your program otherwise.
-
-
-5) Maybe threadpool is simpler than you're making it - tell the threads to clean up,  but don't be so forceful with them. focus more on them performing cleanup, and then deallocating their resources, and your references to it. Also be sure to destroy the mutex that they are pining after. Idea!!! Destroy the mutex before you join the threads? Probably problematic
-
-Dont forget about the segfault being caused by timedlock call on global_circular list which gets freed...
 
 
 
+// TODO 1) handle this login protocol between client and server.
+// TODO 2) Create the shared data structures
+// TODO 3) Try to create a generic enforcement of the ALOHA protocol.
+// TODO 4) Related to #2 - check to make sure that no user with given name exists already.
+// TODO 5) In chat rooms, assign each different user a unique color.
+// TODO 6) Set up a signal handler that takes Ctrl-C and closes sockets correctly.
+// TODO 		a) Handle all possible errors, client dying, server dying, etc.
+// TODO 7) If the server is started with the -e f lag then all chat that is sent to the client(s) and all messag es
+//				should also be displayed on the server.
 
-
-1) Dont wait on each thread
-2) when pool_destroy is called, dont kill them immediately, just make sure they don't take anymore work. The worker_pool won't be used for 
-any threads that have infinite loops
+//TODO 8) Implement waiting room
+			- Create chat rooms
+			- List the available chat rooms
+			- Join a chat room
+			- Log out of the server

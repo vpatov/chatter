@@ -1,44 +1,13 @@
-/*
-Usage: 
-./server [-he] PORT_NUMBER MOTD
 
--e 				Echo messages received on server's stdout.
--h 				Displays help menu & returns EXIT_SUCCESS.
-PORT_NUMBER		Port number to listen on.
-MOTD			Message to display to the client when they connect.
-
-*/
+#include "chatter.h"
 
 
 
-#include <sys/socket.h>
-#include <netinet/ip.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <string.h>
-#include "threadpool.h"
-#include "debug.h"
 
-#define SA 			struct sockaddr
-#define SAin 		struct sockaddr_in
-#define MAX_RECV	1024
-#define MAX_SEND	1024
-
-const char* help_message = 	"Usage:\n./server [-he] PORT_NUMBER MOTD\n\n"
-							"-e\t\t\tEcho messages received on server's stdout.\n"
-							"-h\t\t\tDisplays help menu & returns EXIT_SUCCESS.\n"
-							"PORT_NUMBER\t\tPort number to listen on. (Must be non-zero)\n"
-							"MOTD\t\t\tMessage to display to the client when they connect.\n";
-
-const char* aloha = 	"ALOHA!";
-const char* ahola = 	"!AHOLA";
-const char* iam =		"IAM";
-const char* iamnew = 	"IAMNEW";
-const char* newpass = 	"NEWPASS";
-const char* err =		"ERR";
 
 bool echo_mode = false;
 int server_port;
+int num_chat_rooms;
 char *motd;
 FILE *output;
 
@@ -96,11 +65,7 @@ void spawn_echo_thread(){
 
 
 
-// TODO 1) handle this login protocol between client and server.
-// TODO 2) Create the shared data structures
-// TODO 3) Try to create a generic enforcement of the ALOHA protocol.
-// TODO 4) Related to #2 - check to make sure that no user with given name exists already.
-// TODO 5) In chat rooms, assign each different user a unique color.
+
 /*
 C > S | ALOHA! \r\n
 C < S | !AHOLA \r\n
@@ -109,32 +74,48 @@ C > S | IAM <name> \r\n
 # Example: IAM cse320 \r\n
 */
 
+
+
 //should receive connected socket as argument.
 void *login_thread_func(void *arg){
 	thread_arg_t *thread_arg = arg;
 	int connfd;
+	char expect[MAX_RECV];
 	char recvbuff[MAX_RECV];
 	char sendbuff[MAX_SEND];
 
 	connfd = *(int*)(thread_arg->arg);
 
-	printf("Waiting to receive: %d\n", connfd);
+	info("Waiting to receive: %d", connfd);
 
 	//Receive first ALOHA! from client
 	recv(connfd,recvbuff,MAX_RECV,0);
 
 
 	//Received something other than "ALOHA!", so send an error.
-	if (strcmp(recvbuff,aloha)){
+	snprintf(expect,MAX_RECV,"%s%s",aloha_verb,rn);
+	if (strcmp(recvbuff,expect)){
 
-		snprintf(sendbuff,MAX_SEND,"%s: Expected \"%s\" to be first message upon connection.\r\n", err, aloha);
+		snprintf(sendbuff,MAX_SEND,"%s: Expected \"%s\" to be first message upon connection.%s", err_verb, aloha_verb,rn);
 		send(connfd,sendbuff,strlen(sendbuff),0);
 		close(connfd);
 		return NULL;
 	}
 
-	else {
-		info("aloha received.");
+
+	//Received aloha, proceed to send !AHOLA
+	info("aloha received");
+	snprintf(sendbuff,MAX_SEND,"%s%s",ahola_verb,rn);
+	send(connfd,sendbuff,strlen(sendbuff),0);
+
+
+	//Wait for command from client. Either IAM or IAMNEW
+	info("Waiting for client to send verb.");
+	recv(connfd,recvbuff,MAX_RECV,0);
+
+	snprintf(expect,MAX_RECV,"%s%s",iam_verb,rn);
+	if (strcmp(recvbuff,expect)){
+
 	}
 
 	return NULL;
@@ -179,7 +160,7 @@ accept_connections()
 
 		inet4_ntop(client_ip,conn_sa->sin_addr.s_addr);
 		info("Accepted a client connection: %s", client_ip);
-		info("Spawning login thread...");	
+		info("Queueing login_thread_func in the threadpool...");
 		pool_queue(threadpool,login_thread_func,connfd);
 	}
 }
@@ -194,7 +175,10 @@ server_init()
 {
 	output = stdout;
 	threadpool = pool_create(2,4,500,NULL);
-    info("Starting server. Port: %d", server_port);
+
+	//Initialize locks for the different threads.
+
+    info("Starting server. Currently listening on port: %d", server_port);
 }
 
 /* 
@@ -205,26 +189,36 @@ server_init()
 void parse_args(int argc, char** argv){
 	int opt;
 
-    while ((opt = getopt(argc, argv, "eh")) != -1) {
+    while ((opt = getopt(argc, argv, "ehn")) != -1) {
         switch (opt) {
-        case 'h': fprintf(stderr,"%s",help_message); exit(EXIT_FAILURE);
+        case 'h': fprintf(stderr,"%s",server_help_message); exit(EXIT_FAILURE);
         case 'e': echo_mode = true; break;
+        case 'n': num_chat_rooms = 5; break;
         default:
-        	fprintf(stderr,"%s",help_message);
+        	fprintf(stderr,"%s",server_help_message);
         	exit(EXIT_FAILURE);
         }
     }
 
-    if (optind + 2 != argc){
-    	fprintf(stderr,"%s",help_message);
+    if (num_chat_rooms && optind + 3 != argc){
+    	fprintf(stderr,"%s",server_help_message);
     	exit(EXIT_FAILURE);
+    }
+
+    else if (!num_chat_rooms && optind + 2 != argc){
+    	fprintf(stderr,"%s",server_help_message);
+    	exit(EXIT_FAILURE);
+    }
+
+    if (num_chat_rooms){
+    	num_chat_rooms = atoi(argv[optind++]);
     }
 
     server_port = atoi(argv[optind++]);
     motd = argv[optind++];
 
     if (server_port == 0){
-    	fprintf(stderr,"%s",help_message);
+    	fprintf(stderr,"%s",server_help_message);
     	exit(EXIT_FAILURE);
     }
 }
