@@ -16,3 +16,5 @@
 			- List the available chat rooms
 			- Join a chat room
 			- Log out of the server
+
+//TODO 9) Make sure on client side that username has no spaces, newlines, or forbidden characters.

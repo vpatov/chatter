@@ -15,6 +15,8 @@ pool_t *threadpool;
 
 void spawn_login_thread();
 void *login_thread_func(void *arg);
+void iam_login();
+void iamnew_login();
 /*
 
 // All pointers to socket address structures are often cast to pointers
@@ -74,52 +76,102 @@ C > S | IAM <name> \r\n
 # Example: IAM cse320 \r\n
 */
 
+void iam_login(int connfd, char *client_username){
+	char recvbuff[MAX_RECV];
+	char client_password[MAX_PASSWORD];
+
+	info("Client with username: \"%s\" is attempting login.", client_username);
+	if (user_exists(client_username)){
+		//continue with login
+		//prompt for password
+	}
+}
+
+void iamnew_login(int connfd, char *client_username){
+	int ret;
+	char recvbuff[MAX_RECV];
+	char client_password[MAX_PASSWORD];
+
+	info("Client with username: \"%s\" is attempting login and user creation.", client_username);
+	if (user_exists(client_username)){
+		//tell user no dice
+		//close connection.ERR 01 SORRY <name> \r\n
+		send_error(connfd, ERR01, client_username, false);
+		send_data(connfd,BYE,NULL);
+		close(connfd);
+	}
+	else {
+		send_data(connfd,HINEW,client_username);
+		recv_data(connfd,recvbuff);
+		if (expect_data(recvbuff,(char**)&client_password,NULL,1,NEWPASS) < 0){
+			send_error(connfd, ERR60, NULL, true);
+			return;
+		}
+
+		//check password
+		if (!check_password(client_password)){
+			send_error(connfd, ERR61, NULL, true);
+			return;
+		}
+
+		//make the user
+		if ((ret = create_user(client_username, client_password))){
+			send_error(connfd, ret, NULL, true);
+			return;
+		}
+
+		//successful creation, send HI
+		send_data(connfd, HI, client_username);
+
+	}
+}
 
 
 //should receive connected socket as argument.
 void *login_thread_func(void *arg){
 	thread_arg_t *thread_arg = arg;
 	int connfd;
-	char expect[MAX_RECV];
+	int ret;
+	char client_username[MAX_USERNAME];
 	char recvbuff[MAX_RECV];
-	char sendbuff[MAX_SEND];
 
 	connfd = *(int*)(thread_arg->arg);
-
 	info("Waiting to receive: %d", connfd);
 
 	//Receive first ALOHA! from client
 	recv(connfd,recvbuff,MAX_RECV,0);
-
-
-	//Received something other than "ALOHA!", so send an error.
-	snprintf(expect,MAX_RECV,"%s%s",aloha_verb,rn);
-	if (strcmp(recvbuff,expect)){
-
-		snprintf(sendbuff,MAX_SEND,"%s: Expected \"%s\" to be first message upon connection.%s", err_verb, aloha_verb,rn);
-		send(connfd,sendbuff,strlen(sendbuff),0);
-		close(connfd);
+	if (expect_data(recvbuff,NULL,NULL,1,ALOHA) < 0){
+		send_error(connfd, ERR60, NULL, true);
 		return NULL;
 	}
 
 
 	//Received aloha, proceed to send !AHOLA
 	info("aloha received");
-	snprintf(sendbuff,MAX_SEND,"%s%s",ahola_verb,rn);
-	send(connfd,sendbuff,strlen(sendbuff),0);
+	send_data(connfd,AHOLA,NULL);
+	// snprintf(sendbuff,MAX_SEND,"%s%s",verbs[AHOLA],rn);
+	// send(connfd,sendbuff,strlen(sendbuff),0);
 
 
 	//Wait for command from client. Either IAM or IAMNEW
 	info("Waiting for client to send verb.");
-	recv(connfd,recvbuff,MAX_RECV,0);
+	recv_data(connfd,recvbuff);
+	if ((ret = expect_data(recvbuff, (char**)&client_username, NULL, 2, IAM, IAMNEW)) < 0){
+		send_error(connfd,ERR60, NULL, true);
+		return NULL;
+	}
 
-	snprintf(expect,MAX_RECV,"%s%s",iam_verb,rn);
-	if (strcmp(recvbuff,expect)){
 
+	if (ret == IAM)
+		iam_login(connfd, client_username);
+	else if (ret == IAMNEW)
+		iamnew_login(connfd, client_username);
+	else {
+		error("expect_data has bugs in it.");
+		assert(false);
 	}
 
 	return NULL;
-
 }
 
 
@@ -127,12 +179,15 @@ void
 accept_connections()
 {
 	int listenfd, *connfd;
-	void *err;
+	int err;
 	struct sockaddr_in listen_sa, *conn_sa;
 	socklen_t listen_addrlen, conn_addrlen;
 	char client_ip[INET_ADDRSTRLEN];
 
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
+	if ((err = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int))) < 0){
+		error("setsockopt failed: %s",strerror(err));
+	}
 
 	listen_addrlen = sizeof(listen_sa);
 	bzero(&listen_sa,sizeof(listen_sa));

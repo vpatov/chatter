@@ -7,12 +7,17 @@
 // extern const char aloha[];
 
 void connect_to_server();
+void iam_login();
+void iamnew_login();
+void process_loop();
 
 int server_connfd;
 int server_port;
 bool create_user_mode;
 struct sockaddr_in server_sa;
 socklen_t server_addrlen;
+FILE *output;
+
 
 char *server_ip;
 char *username;
@@ -32,7 +37,125 @@ C > S | IAM <name> \r\n
 # Example: IAM cse320 \r\n
 */
 
+void process_loop(){
+	
+}
 
+void iam_login(){
+	char *request_data;
+	int attempts = 0;
+	char user_password[MAX_PASSWORD];
+
+	send_data(server_connfd, IAM, username);
+
+	recv_data(server_connfd,recvbuff);
+	//expect an AUTH from server.
+	if (expect_data(recvbuff,&request_data,NULL,1,AUTH) < 0){
+		send_error(server_connfd, ERR60, NULL, true);
+		return;
+	}
+
+	//We got the AUTH, let's assert the username is the same
+	if (strcmp(username,request_data)){
+		error("Server responded with wrong username - Abort");
+		close(server_connfd);
+		return;
+	}
+
+	//Prompt user for password, and send it to server
+	fprintf(output,"Please enter your password:\n");
+	scanf("%s",user_password);
+	send_data(server_connfd, PASS, user_password);
+
+	//Receive response
+	recv_data(server_connfd, recvbuff);
+	if (expect_data(recvbuff, &request_data, NULL, 1, HI) < 0){
+		// our password may have been wrong
+		// TODO parse server error responses in expect_data
+	}
+
+	info("Client successfully logged in as existing user: %s", username);
+	process_loop();
+
+}
+
+
+void iamnew_login(){
+	char *request_data;
+	int attempts = 0;
+	char user_password[MAX_PASSWORD];
+
+	send_data(server_connfd, IAMNEW, username);
+
+	recv_data(server_connfd,recvbuff);
+	//expect a HINEW <username> from server.
+	if (expect_data(recvbuff,&request_data,NULL,1,HINEW) < 0){
+		send_error(server_connfd, ERR60, NULL, true);
+		return;
+	}
+
+	//We got the HINEW, let's assert the username is the same
+	if (strcmp(username,request_data)){
+		error("Server responded with wrong username - Abort");
+		close(server_connfd);
+		return;
+	}
+
+	//Prompt user for password
+	fprintf(output,"%s",password_rules);
+	while(true){
+		scanf("%s",user_password);
+		if (check_password(user_password))
+			break;
+		else {
+			attempts++;
+			if (attempts >= 3){
+				fprintf(output,"Too many tries. Sober up and try again later.\n");
+				close(server_connfd);
+				exit(1);
+			}
+			fprintf(output,"Password does not meet criterion. Please try again.\n");
+		}
+	}
+
+	info("Sending server password: ---%s---", user_password);
+	send_data(server_connfd, NEWPASS, user_password);
+
+	recv_data(server_connfd,recvbuff);
+	if (expect_data(recvbuff,&request_data,NULL,1,HI) < 0){
+		error("Got unexpected output from server: %s" ,request_data );
+		return;
+	}
+
+	//We are now connected
+	info("Client successfully logged in as new user: %s", username);
+	process_loop();
+
+
+}
+
+void login_protocol()
+{
+
+	//send ALOHA! to server
+	send_data(server_connfd, ALOHA, NULL);
+
+	//receive response from server -should be !AHOLA
+	recv_data(server_connfd,recvbuff);
+	if (expect_data(recvbuff,NULL,NULL,1,AHOLA) < 0){
+		send_error(server_connfd, ERR60, NULL, true);
+		return;
+	}
+
+	info("Received %s from server.", verbs[AHOLA]);
+
+	if (create_user_mode){
+		iamnew_login();
+	}
+	else {
+		iam_login();
+	}
+}
 
 void
 connect_to_server()
@@ -45,7 +168,7 @@ connect_to_server()
 	server_addrlen = sizeof(server_sa);
 	bzero(&server_sa,sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
-	server_sa.sin_port = htons(9876);
+	server_sa.sin_port = htons(server_port);
 	server_sa.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 	err = connect(server_connfd,(SA *)&server_sa,server_addrlen);
@@ -55,36 +178,15 @@ connect_to_server()
 		return;
 	}
 
-	//send ALOHA! to server
-	snprintf(sendbuff,MAX_SEND,"%s%s",aloha_verb,rn);
-	send(server_connfd,sendbuff,strlen(sendbuff),0);
+	login_protocol();
 
-	//receive response from server
-	recv(server_connfd,recvbuff,MAX_RECV,0);
-
-	//Received something other than "!AHOLA", so print an error and terminate.
-	snprintf(expect,MAX_RECV,"%s%s",ahola_verb,rn);
-	if (strcmp(recvbuff,expect )){
-		error("Expected to receive \"%s\" upon connection.", ahola_verb);
-		close(server_connfd);
-		exit(1);
-	}
-
-	info("Received %s from server.", ahola_verb);
-
-
-
+	
 }
 
 
-void iam(){
-
-}
 
 
-void iamnew(){
 
-}
 
 /*
 ./client [-h] [-c] NAME SERVER_IP SERVER_PORT
@@ -100,6 +202,7 @@ The ipaddress of the server to connect to.
 SERVER_PORT
 The port to connect to.
 */
+
 
 
 void parse_args(int argc, char** argv){
@@ -131,12 +234,10 @@ void parse_args(int argc, char** argv){
 }
 
 int main(int argc, char** argv){
-	printf("aloha enum: %d", aloha);
-	printf("index 0 of verbs: %s",VERBS[0]);
-
 	parse_args(argc, argv);
-	exit(0);
-	
+	output = stdout;
+	info("Initiated client. Creating user? %d, Username: %s, server_port: %d, server_ip: %s", 
+		create_user_mode, username, server_port, server_ip);
 	connect_to_server();
 
 

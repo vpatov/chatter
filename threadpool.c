@@ -340,7 +340,7 @@ void
 			if (is_idle){														//we found a job, we're no longer idle
 				pool->pool_idle--;												//decrement the pool_idle counter
 				is_idle = 0;
-				debug("Pool: %p\tDecremented pool_idle to %d", pool,pool->pool_idle);
+				// debug("Pool: %p\tDecremented pool_idle to %d", pool,pool->pool_idle);
 
 			}
 			thread_arg.arg = job->job_arg;										//populate the thread_arg, which will hold pool and job_arg

@@ -9,13 +9,13 @@ CXXFLAGS = -Wall -g -pthread
 all: server client
 
 server: server.o threadpool.o chatter.o
-	$(CXX) $(CXXFLAGS) -o server server.o threadpool.o chatter.o -lm
+	$(CXX) $(CXXFLAGS) -o server server.o threadpool.o chatter.o -lm -lssl -lcrypto
 
 server.o: server.c threadpool.h chatter.h
 	$(CXX) $(CXXFLAGS) -c server.c
 
 client: client.o threadpool.o chatter.o
-	$(CXX) $(CXXFLAGS) -o client client.o threadpool.o chatter.o -lm
+	$(CXX) $(CXXFLAGS) -o client client.o threadpool.o chatter.o -lm -lssl -lcrypto
 
 client.o: client.c threadpool.h chatter.h
 	$(CXX) $(CXXFLAGS) -c client.c
@@ -23,7 +23,7 @@ client.o: client.c threadpool.h chatter.h
 threadpool.o: threadpool.h
 
 chatter.o: chatter.h
-
+	$(CXX) $(CXXFLAGS) -c chatter.c
 clean:
 	rm *.o client server 
 
