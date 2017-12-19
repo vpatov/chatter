@@ -81,7 +81,7 @@ void iam_login(){
 
 
 void iamnew_login(){
-	char *request_data;
+	char request_data[MAX_USERNAME];
 	int attempts = 0;
 	char user_password[MAX_PASSWORD];
 
@@ -89,7 +89,7 @@ void iamnew_login(){
 
 	recv_data(server_connfd,recvbuff);
 	//expect a HINEW <username> from server.
-	if (expect_data(recvbuff,&request_data,NULL,1,HINEW) < 0){
+	if (expect_data(recvbuff,request_data,NULL,1,HINEW) < 0){
 		send_error(server_connfd, ERR60, NULL, true);
 		return;
 	}
@@ -122,7 +122,7 @@ void iamnew_login(){
 	send_data(server_connfd, NEWPASS, user_password);
 
 	recv_data(server_connfd,recvbuff);
-	if (expect_data(recvbuff,&request_data,NULL,1,HI) < 0){
+	if (expect_data(recvbuff,request_data,NULL,1,HI) < 0){
 		error("Got unexpected output from server: %s" ,request_data );
 		return;
 	}

@@ -65,11 +65,12 @@ int recv_data(int connfd, char *recvbuff){
 //Accepts a variable length list of verbs. Upon finding one of the verbs,
 //it returns the enum index of the verb and populates data with the data.
 //returns -1 on error.
-int expect_data(char *recvbuff, char **request_data, char **errcode,int num_verbs, ...){
+int expect_data(char *recvbuff, char *request_data, char **errcode,int num_verbs, ...){
 
-	int index, verb_enum, length;
+	int index, verb_enum;
 	const char *verb;
 	char *saveptr = NULL;
+	char *tokenptr;
 	// const char *delimiter;
 	char *recv_verb;
 
@@ -104,11 +105,11 @@ int expect_data(char *recvbuff, char **request_data, char **errcode,int num_verb
     //if we found a verb we expected, point data to the rest of the message
     // TODO TODO LEFTOFF
     if (request_data != NULL){
-
-    	*request_data = strtok_r(NULL,sprn, &saveptr);
-    	if (*request_data == NULL){
+    	tokenptr = strtok_r(NULL,sprn, &saveptr);
+    	if (tokenptr == NULL){
  			return ERR62;
     	}
+    	strcpy(request_data,tokenptr);
 
     }
 
@@ -254,7 +255,7 @@ int create_user(char *username, char *password){
 
 
 
-	fprintf(fp,"%s:%d:%s\n",username,salt,hash_digest);
+	fprintf(fp,"%s:%u:%s\n",username,salt,hash_digest);
 	fclose(fp);
 
 	return 0;

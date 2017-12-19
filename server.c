@@ -103,7 +103,7 @@ void iamnew_login(int connfd, char *client_username){
 	else {
 		send_data(connfd,HINEW,client_username);
 		recv_data(connfd,recvbuff);
-		if (expect_data(recvbuff,(char**)&client_password,NULL,1,NEWPASS) < 0){
+		if (expect_data(recvbuff,client_password,NULL,1,NEWPASS) < 0){
 			send_error(connfd, ERR60, NULL, true);
 			return;
 		}
@@ -156,7 +156,7 @@ void *login_thread_func(void *arg){
 	//Wait for command from client. Either IAM or IAMNEW
 	info("Waiting for client to send verb.");
 	recv_data(connfd,recvbuff);
-	if ((ret = expect_data(recvbuff, (char**)&client_username, NULL, 2, IAM, IAMNEW)) < 0){
+	if ((ret = expect_data(recvbuff, client_username, NULL, 2, IAM, IAMNEW)) < 0){
 		send_error(connfd,ERR60, NULL, true);
 		return NULL;
 	}

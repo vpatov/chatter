@@ -55,7 +55,7 @@ extern const char *verbs[];
 
 int send_data(int connfd, int verb, char *data);
 int recv_data(int connfd, char *recvbuff);
-int expect_data(char *recvbuff, char **request_data, char **errcode, int num_verbs, ...);
+int expect_data(char *recvbuff, char *request_data, char **errcode, int num_verbs, ...);
 void send_error(int connfd, int error, char *message, bool close_connection);
 bool user_exists(char *username);
 bool check_password(char *password);
