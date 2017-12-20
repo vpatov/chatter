@@ -8,13 +8,13 @@ CXXFLAGS = -Wall -g -pthread
 
 all: server client
 
-server: server.o threadpool.o chatter.o auth.o utils.o vars.o errors.o
-	$(CXX) $(CXXFLAGS) -o server server.o threadpool.o chatter.o auth.o utils.o vars.o errors.o -lm -lssl -lcrypto
+server: server.o threadpool.o chatter.o auth.o utils.o vars.o errors.o locks.o
+	$(CXX) $(CXXFLAGS) -o server server.o threadpool.o chatter.o auth.o utils.o vars.o errors.o locks.o -lm -lssl -lcrypto
 
 
 
-client: client.o threadpool.o chatter.o auth.o utils.o vars.o errors.o 
-	$(CXX) $(CXXFLAGS) -o client client.o threadpool.o chatter.o auth.o utils.o vars.o errors.o -lm -lssl -lcrypto
+client: client.o threadpool.o chatter.o auth.o utils.o vars.o errors.o locks.o
+	$(CXX) $(CXXFLAGS) -o client client.o threadpool.o chatter.o auth.o utils.o vars.o errors.o locks.o -lm -lssl -lcrypto
 
 
 server.o: server.c threadpool.h chatter.h
@@ -40,6 +40,9 @@ vars.o: chatter.h
 
 errors.o: chatter.h
 	$(CXX) $(CXXFLAGS) -c errors.c
+
+locks.o: chatter.h
+	$(CXX) $(CXXFLAGS) -c locks.c
 
 clean:
 	rm *.o client server 

@@ -1,4 +1,4 @@
-
+#define _GNU_SOURCE
 #include "chatter.h"
 
 
@@ -9,7 +9,7 @@
 void connect_to_server();
 void iam_login();
 void iamnew_login();
-void process_loop();
+void main_communication();
 
 int server_connfd;
 int server_port;
@@ -23,7 +23,7 @@ char *server_ip;
 char *username;
 char recvbuff[MAX_RECV];
 char sendbuff[MAX_SEND];
-char expect[MAX_RECV];
+char stdinbuff[MAX_SEND];
 
 // TODO 1) handle this login protocol between client and server.
 // TODO 2) Create the shared data structures
@@ -37,22 +37,127 @@ C > S | IAM <name> \r\n
 # Example: IAM cse320 \r\n
 */
 
-void process_loop(){
+
+// void
+// echo_client(FILE *fp, int sockfd)
+// {
+// 	int             maxfdp1, stdineof;
+// 	fd_set          rset;
+// 	char            buf[MAXLINE];
+// 	int             n;
+
+// 	//timeout value for select
+// 	struct timeval tv;
+
+// 	stdineof = 0;
+// 	FD_ZERO(&rset);
+// 	for ( ; ; ) {
+// 		FD_ZERO(&rset);
+
+// 		if (stdineof == 0)
+// 		    FD_SET(fileno(fp), &rset);
+		
+// 		tv.tv_sec = 1;
+// 		tv.tv_usec = 100;
+
+
+// 	    FD_SET(sockfd, &rset);
+// 	    maxfdp1 = max(fileno(fp), sockfd) + 1;
+// 	    Select(maxfdp1, &rset, NULL, NULL, &tv);
+
+// 	    if (FD_ISSET(sockfd, &rset)) {  /* socket is readable */
+// 	    	if ( (n = read(sockfd, buf, MAXLINE)) == 0) {
+// 	            if (stdineof == 1)
+// 	                return;         /* normal termination */
+// 	            else
+// 					fprintf(stderr,"echo_client: server terminated prematurely\n");					
+// 				exit(0);
+// 	            }
+// 	    	Write(fileno(stdout), buf, n);
+// 	    }
+
+
+
+// 	    if (FD_ISSET(fileno(fp), &rset)) {  /* input is readable */
+// 		    if ((n = read(fileno(fp), buf, MAXLINE)) == 0) {
+// 	            stdineof = 1;
+// 	            FD_CLR(fileno(fp), &rset);
+// 				fprintf(stderr,"Connection Terminated.\n");
+// 	            continue;
+// 		    }
+
+// 		    Write(sockfd, buf, n);
+// 	    }
+
+//     }
+// }
+
+
+
+void main_communication(){
 	
+	struct pollfd fds[2]; //multiplex on server and on stdin
+	int timeout_ms = 1000;
+	int ret;
+
+	fds[0].fd = server_connfd;
+	fds[0].events = POLLIN;
+	fds[1].fd = fileno(stdin);
+	fds[1].events = POLLIN;
+
+	while(true){
+		ret = poll(fds, 2, timeout_ms);
+		if (ret > 0) {
+			if (fds[0].revents & POLLIN){
+				ret = recv_data(server_connfd,recvbuff);
+				if (ret < 0){
+					debug("server returned: %d %s",ret, strerror(ret));
+					exit(0);
+				}
+				if (ret == 0){
+					debug("server returned zero.");
+					exit(0);
+				}
+				debug("received from server: %s", recvbuff);
+			}
+
+			if (fds[0].revents & POLLHUP){
+				debug("Server disconnected.");
+				exit(0);
+			}
+			if (fds[0].revents & POLLRDHUP){
+				debug("Server disconnected.");
+				exit(0);
+
+				
+			}
+			if (fds[1].revents & POLLIN){
+				read(fileno(stdin), stdinbuff, MAX_SEND);
+				debug("Received from stdin: %s", stdinbuff);
+
+				send_data(server_connfd,MSG,stdinbuff);
+			}
+
+		}
+
+	//multiplex on server output and user input 
+	}
+
 }
 
 void iam_login(){
-	int ret, error_code;
+	int ret, error_code, tokens;
+	char *message;
 	char message_data[MAX_RECV];
 	char user_password[MAX_PASSWORD];
-	char *recvptr;
 
 	send_data(server_connfd, IAM, username);
 
-	recvptr = recvbuff;
 	recv_data(server_connfd,recvbuff);
+	tokens = tokenize(recvbuff,sprn);
+	message = get_token(recvbuff,sprn,0);
 	//expect an AUTH from server.
-	if ((ret = expect_data2(&recvptr,message_data, &error_code,1,AUTH)) < 0){
+	if ((ret = expect_data(recvbuff,message_data, &error_code,1,AUTH)) < 0){
 		handle_error(recvbuff,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
@@ -71,9 +176,11 @@ void iam_login(){
 	send_data(server_connfd, PASS, user_password);
 
 	//Receive response
-	recvptr = recvbuff;
+	
 	recv_data(server_connfd, recvbuff);
-	if (expect_data2(&recvptr, message_data, &error_code, 1, HI) < 0){
+	tokens = tokenize(recvbuff,sprn);
+	message = get_token(recvbuff,sprn,0);
+	if (expect_data(recvbuff, message_data, &error_code, 1, HI) < 0){
 		// our password may have been wrong
 		handle_error(recvbuff,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
@@ -81,24 +188,25 @@ void iam_login(){
 	}
 
 	info("Client successfully logged in as existing user: %s", username);
-	process_loop();
+	main_communication();
 
 }
 
 
 void iamnew_login(){
-	int ret, error_code;
+	int ret, error_code, tokens;
 	char message_data[MAX_RECV];
 	char user_password[MAX_PASSWORD];
-	char *recvptr;
+	char *message;
 	int attempts = 0;
 
 	send_data(server_connfd, IAMNEW, username);
 
-	recvptr = recvbuff;
 	recv_data(server_connfd,recvbuff);
+	tokens = tokenize(recvbuff,sprn);
+	message = get_token(recvbuff,sprn,0);	
 	//expect a HINEW <username> from server.
-	if ((ret = expect_data2(&recvptr,message_data,&error_code,1,HINEW)) < 0){
+	if ((ret = expect_data(recvbuff,message_data,&error_code,1,HINEW)) < 0){
 		handle_error(recvbuff,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
@@ -131,29 +239,31 @@ void iamnew_login(){
 	info("Sending server password: ---%s---", user_password);
 	send_data(server_connfd, NEWPASS, user_password);
 
-	recvptr = recvbuff;
+
 	recv_data(server_connfd,recvbuff);
-	if ((ret = expect_data2(&recvptr,message_data,&error_code,1,HI)) < 0){
+	tokens = tokenize(recvbuff,sprn);
+	message = get_token(recvbuff,sprn,0);
+	if ((ret = expect_data(recvbuff,message_data,&error_code,1,HI)) < 0){
 		handle_error(recvbuff, message_data, error_code);
 		return;
 	}
 
 	//We are now connected
 	info("Client successfully logged in as new user: %s", username);
-	process_loop();
+	main_communication();
 
 
 }
 
 void login_protocol()
 {
-
+	int error_code;
 	//send ALOHA! to server
 	send_data(server_connfd, ALOHA, NULL);
 
 	//receive response from server -should be !AHOLA
 	recv_data(server_connfd,recvbuff);
-	if (expect_data(recvbuff,NULL,1,AHOLA) < 0){
+	if (expect_data(recvbuff,NULL,&error_code,1,AHOLA) < 0){
 		send_error(server_connfd, 60, NULL, true);
 		return;
 	}

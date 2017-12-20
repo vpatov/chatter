@@ -1,15 +1,15 @@
 
 
 
-// TODO 1) handle this login protocol between client and server.
-// TODO 2) Create the shared data structures
-// TODO 3) Try to create a generic enforcement of the ALOHA protocol.
-// TODO 4) Related to #2 - check to make sure that no user with given name exists already.
+1) echo MOTD to connected clients
+
 // TODO 5) In chat rooms, assign each different user a unique color.
 // TODO 6) Set up a signal handler that takes Ctrl-C and closes sockets correctly.
 // TODO 		a) Handle all possible errors, client dying, server dying, etc.
 // TODO 7) If the server is started with the -e f lag then all chat that is sent to the client(s) and all messag es
 //				should also be displayed on the server.
+
+
 
 //TODO 8) Implement waiting room
 			- Create chat rooms
@@ -17,4 +17,3 @@
 			- Join a chat room
 			- Log out of the server
 
-//TODO 9) Make sure on client side that username has no spaces, newlines, or forbidden characters.

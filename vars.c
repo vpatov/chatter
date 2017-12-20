@@ -31,6 +31,6 @@ const char *rn = "\r\n";
 const char *r = "\r";
 
 const char *verbs[] = {
-	"ALOHA!", "!AHOLA", "IAM", "IAMNEW","HI", "HINEW", "AUTH", "PASS", "NEWPASS", "ERR", "BYE", "MSG"
+	"ALOHA!", "!AHOLA", "IAM", "IAMNEW","HI", "HINEW", "AUTH", "PASS", "NEWPASS", "ERR", "BYE", "MSG", "CREATER", "RETAERC"
 };
 

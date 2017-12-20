@@ -20,3 +20,10 @@ unsigned int randint(){
 	return rand;
 }
 
+
+char*
+inet4_ntop(char *dst, unsigned int addr)
+{
+    snprintf(dst,INET_ADDRSTRLEN,"%d.%d.%d.%d\n", (addr >> 24) & 0xFF, (addr >> 16) & 0xFF, (addr >> 8) & 0xFF, addr & 0xFF); 
+    return dst;
+}

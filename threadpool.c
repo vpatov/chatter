@@ -57,11 +57,7 @@ pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 	}
 
 
-	//initialize the pool mutex attributes for robustness
-	//This is important because pool_destroy may cause some threads to
-	//exit before they give up their pool_mutex lock, causing all the
-	//other threads to deadlock. Either this will solve the problem,
-	//or perhaps conditions?
+
 	pthread_mutexattr_init(&mutex_attr);
 	pthread_mutexattr_settype(&mutex_attr,PTHREAD_MUTEX_ERRORCHECK);
 	// pthread_mutexattr_setrobust(&mutex_attr, PTHREAD_MUTEX_ROBUST);				
@@ -317,14 +313,14 @@ void
 
 
 		if (should_die){														//check if we should cleanup and DIEE
-			debug("goto closethread");
+			//debug("goto closethread");
 			goto close_thread;
 		}
 		else {
 			should_die = should_thread_die(pool);
 			if (should_die){
 				restart_time = 0;
-				debug("goto closethread");
+				//debug("goto closethread");
 				goto close_thread;
 			}
 		}
@@ -346,7 +342,7 @@ void
 			thread_arg.arg = job->job_arg;										//populate the thread_arg, which will hold pool and job_arg
 			pthread_mutex_unlock(&pool->pool_mutex);							//other threads need to do work!
 
-			debug("taking on job at %p", job);
+			//debug("taking on job at %p", job);
 			job->job_func(&thread_arg);											//call the work function of interest.
 
 
@@ -381,8 +377,8 @@ void
 					continue;													//go back to try to find work
 				}
 
-				 debug("This thread can't find any more jobs, "
-						"and time has run out -- exiting.");
+				 //debug("This thread can't find any more jobs, "
+				//		"and time has run out -- exiting.");
 
 
 				close_thread:
@@ -393,11 +389,11 @@ void
 					}
 
 					pool->pool_nthreads--;											//decrement the amount of nthreads
-					debug("Pool:%p\tDecremented pool_nthreads to %d", pool,pool->pool_nthreads);
+					//debug("Pool:%p\tDecremented pool_nthreads to %d", pool,pool->pool_nthreads);
 					if (is_idle){
 						is_idle = 0;
 						pool->pool_idle--;											//before it expired, it was idle, by definition of our thread pool
-						debug("Pool: %p\tDecremented pool_idle to %d", pool,pool->pool_idle);
+						//debug("Pool: %p\tDecremented pool_idle to %d", pool,pool->pool_idle);
 					}
 
 

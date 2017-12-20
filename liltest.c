@@ -4,20 +4,22 @@
 #include "debug.h"
 #include <string.h>
 
+
+
+
 int
 main(int argc, char *argv[])
 {
 
+    char message[1024];
+    strcpy(message,"IAMNEW vasia \r\nBYE mofo \r\n");
 
+    int tokens = tokenize(message, " \r\n");
 
-    char *message = "IAMNEW vasia \r\n";
-    char *ptr;
-    ptr = strstr(message,"NEW");
+    info("tokens: %d", tokens);
 
-    info("%x",ptr);
-    info("%x",message);
-
-    int x;
-    x = 5;
+    info("token1: %s", get_token(message," \r\n",0));
+    info("token1: %s", get_token(message," \r\n",1));
+    info("token2: %s", get_token(message," \r\n",2));
 
 }

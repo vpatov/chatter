@@ -12,6 +12,7 @@
 #include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <fcntl.h>
+#include <poll.h>
 #include "threadpool.h"
 #include "debug.h"
 
@@ -21,10 +22,17 @@
 #define MAX_SEND		1024
 #define MAX_USERNAME	32
 #define MAX_PASSWORD	32
-#define MAX_USERS		512
+#define MAX_USERS		64
 
 
-
+/* --------------- server.c ----------------- */
+/* ------------------------------------------ */
+extern bool echo_mode;
+extern bool echo_flag;
+extern pthread_t echo_thread;
+extern pthread_attr_t echo_thread_attr;
+/* ------------------------------------------ */
+/* ------------------------------------------ */
 
 
 
@@ -50,7 +58,7 @@ extern const char *accounts_filename;
 
 
 
-enum verbs_enum {ALOHA, AHOLA, IAM, IAMNEW, HI, HINEW, AUTH, PASS, NEWPASS, ERR, BYE, MSG};
+enum verbs_enum {ALOHA, AHOLA, IAM, IAMNEW, HI, HINEW, AUTH, PASS, NEWPASS, ERR, BYE, MSG, CREATER, RETAERC};
 extern const char *verbs[];
 /* ------------------------------------------ */
 /* ------------------------------------------ */
@@ -87,6 +95,11 @@ const char * get_error(int err_code);
 /* ------------------------------------------ */
 extern pthread_mutex_t user_account_mutex;
 extern pthread_mutex_t user_info_mutex;
+void init_user_mutexes();
+void lock_user_accounts(int track);
+void unlock_user_accounts(int track);
+void lock_user_info(int track);
+void unlock_user_info(int track);
 /* ------------------------------------------ */
 /* ------------------------------------------ */
 
@@ -98,10 +111,12 @@ extern pthread_mutex_t user_info_mutex;
 /* ------------------------------------------ */
 int send_data(int connfd, int verb, char *data);
 int recv_data(int connfd, char *recvbuff);
-int expect_data(char *recvbuff, char *request_data, int num_verbs, ...);
-int expect_data2(char **recvptr, char *message_data, int *error_code, int num_verbs, ...);
+int close_conn(int connfd);
+int expect_data(char *recvbuff, char *message_data, int *error_code, int num_verbs, ...);
 void send_error(int connfd, int error, char *message, bool close_connection);
 void handle_error(char *recvbuff, char *message_data, int error_code);
+int tokenize(char *string, const char *delim);
+char *get_token(char *string, const char *delim, int count);
 /* ------------------------------------------ */
 /* ------------------------------------------ */
 
@@ -113,6 +128,7 @@ void handle_error(char *recvbuff, char *message_data, int error_code);
 /* ------------------------------------------ */
 void strip_char(char *str, char strip);
 unsigned int randint();
+char *inet4_ntop(char *dst, unsigned int addr);
 /* ------------------------------------------ */
 /* ------------------------------------------ */
 
@@ -136,6 +152,7 @@ typedef struct user_info user_info_t;
 struct user_info {
 	char username[MAX_USERNAME+1];
 	int connfd;
+	bool ready;
 	user_info_t *next;
 };
 extern user_info_t *user_infos;									// logged in users, and their socket descriptors
@@ -156,6 +173,13 @@ int write_user_accounts();										// write the user accounts in memory to disk
 user_info_t* login_user(char *username, int connfd);			//login the user
 int logout_user(char *username);								//logout the user, close the connection if not closed
 user_info_t* user_logged_in(char *username);					//see if user is logged in
+user_info_t* get_user_byfd(int connfd);							//get the user info by the socket fd
+int get_num_users();
+void mark_user_ready(char *username);
 /* ------------------------------------------ */
 /* ------------------------------------------ */
+
+
+
+
 

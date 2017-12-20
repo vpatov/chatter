@@ -7,7 +7,7 @@ https://stackoverflow.com/questions/47880223/how-to-programmatically-map-integer
 */
 
 const error_message_t error_messages[] = {
-    { .code = 3,    .msg = "SORRY"},
+    { .code = 0,    .msg = "SORRY"},
     { .code = 1,    .msg = "USER %s EXISTS"},
     { .code = 2,    .msg = "%s DOES NOT EXIST"},
     { .code = 10,   .msg = "ROOM EXISTS"},

@@ -30,85 +30,87 @@ int recv_data(int connfd, char *recvbuff){
 //Accepts a variable length list of verbs. Upon finding one of the verbs,
 //it returns the enum index of the verb and populates data with the data.
 //returns -1 on error.
-int expect_data(char *recvbuff, char *request_data, int num_verbs, ...){
+// int expect_data(char *recvbuff, char *request_data, int num_verbs, ...){
 
-	int index, verb_enum, error_code;
-	const char *verb;
-	char *saveptr = NULL;
-	char *tokenptr;
-	// const char *delimiter;
-	char *recv_verb;
-
-
-	//We must use the reentrant version of strtok, strtok_r.
-	//If we are expecting more data after the verb, then delimit
-	//the verb via a space. If we are not expecting more data, then
-	//delimit it via a carriage return "\r\n".
-	// delimiter = (request_data != NULL) ? space : rn;
-	recv_verb = strtok_r(recvbuff, space, &saveptr);
-	debug("recv_verb:%s\n",recv_verb);
-
-	if (!strcmp(recv_verb,verbs[ERR])){
-		//take the rest of the message except for the carriage return
-		tokenptr = strtok_r(NULL,sprn, &saveptr);
-
-		//if there is no carriage return, message is improperly formatted
-    	if (tokenptr == NULL){
- 			return -62;
-    	}
-
-    	//if the pointer passed is NULL, user doesnt want the message
-    	if (request_data != NULL){
-    		strcpy(request_data,tokenptr);
-    		debug("request data in expect_data: --%s--",request_data);
-    	}
-
-    	//get the error code
-    	tokenptr = strtok_r(NULL,space,&saveptr);
-    	if (tokenptr != NULL){
-    		error_code = strtol(tokenptr,NULL,10);
-    		if (errno != 0){
-	    		debug("error_code in expect_data: --%d--",error_code);
-	    		return error_code;
-    		}
-    	}
-
-    	return -62;
-	}
+// 	int index, verb_enum, error_code;
+// 	const char *verb;
+// 	char *saveptr = NULL;
+// 	char *tokenptr;
+// 	// const char *delimiter;
+// 	char *recv_verb;
 
 
-	va_list arguments;
-	va_start (arguments, num_verbs); 
-	for (index = 0; index < num_verbs; index++){
-		verb_enum = va_arg(arguments,int);
-		verb = verbs[verb_enum];
+// 	//We must use the reentrant version of strtok, strtok_r.
+// 	//If we are expecting more data after the verb, then delimit
+// 	//the verb via a space. If we are not expecting more data, then
+// 	//delimit it via a carriage return "\r\n".
+// 	// delimiter = (request_data != NULL) ? space : rn;
+// 	recv_verb = strtok_r(recvbuff, space, &saveptr);
+// 	debug("recv_verb:%s\n",recv_verb);
 
-		//if the received buffer is equivalent to one of our accepted verbs
-		if (!strncmp(recv_verb,verb,strlen(recv_verb))) {
-			break;
-		}
-    }
-    va_end (arguments);
+// 	if (!strcmp(recv_verb,verbs[ERR])){
+// 		//take the rest of the message except for the carriage return
+// 		tokenptr = strtok_r(NULL,sprn, &saveptr);
+
+// 		//if there is no carriage return, message is improperly formatted
+//     	if (tokenptr == NULL){
+//  			return -62;
+//     	}
+
+//     	//if the pointer passed is NULL, user doesnt want the message
+//     	if (request_data != NULL){
+//     		strcpy(request_data,tokenptr);
+//     		debug("request data in expect_data: --%s--",request_data);
+//     	}
+
+//     	//get the error code
+//     	tokenptr = strtok_r(NULL,space,&saveptr);
+//     	if (tokenptr != NULL){
+//     		error_code = strtol(tokenptr,NULL,10);
+//     		if (errno != 0){
+// 	    		debug("error_code in expect_data: --%d--",error_code);
+// 	    		return error_code;
+//     		}
+//     	}
+
+//     	return -62;
+// 	}
 
 
-    //if we want the rest of the message (correct verb or error regardless)
-    //copy it into the request_data
-    // TODO TODO LEFTOFF
-    if (request_data != NULL){
-    	tokenptr = strtok_r(NULL,sprn, &saveptr);
-    	if (tokenptr == NULL){
- 			return -62;
-    	}
-    	strcpy(request_data,tokenptr);
-    }
+// 	va_list arguments;
+// 	va_start (arguments, num_verbs); 
+// 	for (index = 0; index < num_verbs; index++){
+// 		verb_enum = va_arg(arguments,int);
+// 		verb = verbs[verb_enum];
 
-    //if we didn't find the verb, return -1.
-    return index == num_verbs ? -1 : verb_enum;
-}
+// 		//if the received buffer is equivalent to one of our accepted verbs
+// 		if (!strncmp(recv_verb,verb,strlen(recv_verb))) {
+// 			break;
+// 		}
+//     }
+//     va_end (arguments);
+
+
+//     //if we want the rest of the message (correct verb or error regardless)
+//     //copy it into the request_data
+//     // TODO TODO LEFTOFF
+//     if (request_data != NULL){
+//     	tokenptr = strtok_r(NULL,sprn, &saveptr);
+//     	if (tokenptr == NULL){
+//  			return -62;
+//     	}
+//     	strcpy(request_data,tokenptr);
+//     }
+
+//     //if we didn't find the verb, return -1.
+//     return index == num_verbs ? -1 : verb_enum;
+// }
 
 
 
 /*
+	Expects one message. No carriage returns.
+
 	char **recvptr - 	a pointer to a pointer that points to the recvbuff used to recv into.
 					 	This pointer gets modified by strtok to point to different parts of the
 					 	recv buffer as tokens gets parsed
@@ -124,37 +126,29 @@ int expect_data(char *recvbuff, char *request_data, int num_verbs, ...){
 
 */
 //returns -1 on unexpected errors, returns verb otherwise. 
-int expect_data2(char **recvptr, char *message_data, int *error_code, int num_verbs, ...){
+int expect_data(char *recvbuff, char *message_data, int *error_code, int num_verbs, ...){
 	int index, verb_enum;
 	const char *verb;
 	char *saveptr1, *saveptr2;
-	char *tokenptr;
 	char *recv_verb;
 	char *error_num;
 
-	// const char *delimiter;
 
-	//tokenptr points to first token
-	tokenptr = strtok_r(*recvptr, r, &saveptr1);
-	*recvptr = tokenptr;
-	debug("expect_data message token (sprn):%s\n",tokenptr);
-
-	//if no carriage return found, imporper formatting error
-	if (tokenptr == NULL){
-		*error_code = 62;
-		return -1;
-	}
 
 	//get verb
-	recv_verb = strtok_r(tokenptr, space, &saveptr2);
+	recv_verb = strtok_r(recvbuff, space, &saveptr1);
 	debug("expect_data recv_verb:%s\n",recv_verb);
 
+	if (recv_verb == NULL){
+		*error_code = 100;
+		return -1;
+	}
 
 	//if the verb is ERR
 	if (!strcmp(recv_verb,verbs[ERR])){
 
 		//GET ERROR CODE
-		error_num = strtok_r(NULL, space, &saveptr2);
+		error_num = strtok_r(saveptr1, space, &saveptr2);
 		if (error_num != NULL){
 			*error_code = strtol(error_num,NULL,10);
     		if (errno != 0){
@@ -171,7 +165,7 @@ int expect_data2(char **recvptr, char *message_data, int *error_code, int num_ve
 
 		//if user interested in message_data, copy what's in the rest of the token into message_data
 		if (message_data != NULL)
-			strcpy(saveptr2,message_data);
+			strcpy(message_data,saveptr2);
 
 		return -ERR;
 	}
@@ -194,7 +188,7 @@ int expect_data2(char **recvptr, char *message_data, int *error_code, int num_ve
 
     //if interested in message, copy it.
     if (message_data != NULL){
-		strcpy(saveptr1,message_data);
+		strcpy(message_data,saveptr1);
     }
 
     return index == num_verbs ? -1 : verb_enum;
@@ -244,7 +238,7 @@ void send_error(int connfd, int error, char *message, bool close_connection){
 
 char *my_strtok(char *string, const char *delim, char **saveptr){
 	char *ptr;
-	int i;
+	int i = 0;
 
 	ptr = strstr(string,delim);
 	if (ptr != NULL){
@@ -252,6 +246,51 @@ char *my_strtok(char *string, const char *delim, char **saveptr){
 			*(ptr + i) = 0;
 		}
 	}
+	else {
+		return NULL;
+	}
 
 	*saveptr = (ptr + i);
+	return ptr;
+}
+
+
+int tokenize(char *string, const char *delim){
+    char *ptr;
+    int i = 0;
+    int tokens = 0;
+    int length = strlen(delim);
+
+    ptr = string;
+    do {
+        ptr = strstr(ptr,delim);
+        if (ptr != NULL){
+            //set the delimeter bytes to zero.
+            memset(ptr,0,length);
+            ptr += length;
+            tokens++;
+        }
+    
+    } while(ptr != NULL);
+
+    return tokens;
+}
+
+char *get_token(char *string, const char *delim, int count){
+    int length = strlen(delim);
+    char *ptr = string;
+
+
+    for (int i = 0; i < count; i++){
+        while(*ptr){
+            ptr++;
+        }
+        ptr+=length;
+    }
+    if (*ptr)
+        return ptr;
+    else
+        return NULL;
+
+
 }
