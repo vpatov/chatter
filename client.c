@@ -42,21 +42,24 @@ void process_loop(){
 }
 
 void iam_login(){
-	char *request_data;
-	int attempts = 0;
+	int ret, error_code;
+	char message_data[MAX_RECV];
 	char user_password[MAX_PASSWORD];
+	char *recvptr;
 
 	send_data(server_connfd, IAM, username);
 
+	recvptr = recvbuff;
 	recv_data(server_connfd,recvbuff);
 	//expect an AUTH from server.
-	if (expect_data(recvbuff,&request_data,NULL,1,AUTH) < 0){
-		send_error(server_connfd, ERR60, NULL, true);
+	if ((ret = expect_data2(&recvptr,message_data, &error_code,1,AUTH)) < 0){
+		handle_error(recvbuff,message_data,error_code);
+		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
 
 	//We got the AUTH, let's assert the username is the same
-	if (strcmp(username,request_data)){
+	if (strcmp(username,message_data)){
 		error("Server responded with wrong username - Abort");
 		close(server_connfd);
 		return;
@@ -68,10 +71,13 @@ void iam_login(){
 	send_data(server_connfd, PASS, user_password);
 
 	//Receive response
+	recvptr = recvbuff;
 	recv_data(server_connfd, recvbuff);
-	if (expect_data(recvbuff, &request_data, NULL, 1, HI) < 0){
+	if (expect_data2(&recvptr, message_data, &error_code, 1, HI) < 0){
 		// our password may have been wrong
-		// TODO parse server error responses in expect_data
+		handle_error(recvbuff,message_data,error_code);
+		send_error(server_connfd, 60, NULL, true);
+		return;
 	}
 
 	info("Client successfully logged in as existing user: %s", username);
@@ -81,21 +87,25 @@ void iam_login(){
 
 
 void iamnew_login(){
-	char request_data[MAX_USERNAME];
-	int attempts = 0;
+	int ret, error_code;
+	char message_data[MAX_RECV];
 	char user_password[MAX_PASSWORD];
+	char *recvptr;
+	int attempts = 0;
 
 	send_data(server_connfd, IAMNEW, username);
 
+	recvptr = recvbuff;
 	recv_data(server_connfd,recvbuff);
 	//expect a HINEW <username> from server.
-	if (expect_data(recvbuff,request_data,NULL,1,HINEW) < 0){
-		send_error(server_connfd, ERR60, NULL, true);
+	if ((ret = expect_data2(&recvptr,message_data,&error_code,1,HINEW)) < 0){
+		handle_error(recvbuff,message_data,error_code);
+		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
 
 	//We got the HINEW, let's assert the username is the same
-	if (strcmp(username,request_data)){
+	if (strcmp(username,message_data)){
 		error("Server responded with wrong username - Abort");
 		close(server_connfd);
 		return;
@@ -121,9 +131,10 @@ void iamnew_login(){
 	info("Sending server password: ---%s---", user_password);
 	send_data(server_connfd, NEWPASS, user_password);
 
+	recvptr = recvbuff;
 	recv_data(server_connfd,recvbuff);
-	if (expect_data(recvbuff,request_data,NULL,1,HI) < 0){
-		error("Got unexpected output from server: %s" ,request_data );
+	if ((ret = expect_data2(&recvptr,message_data,&error_code,1,HI)) < 0){
+		handle_error(recvbuff, message_data, error_code);
 		return;
 	}
 
@@ -142,8 +153,8 @@ void login_protocol()
 
 	//receive response from server -should be !AHOLA
 	recv_data(server_connfd,recvbuff);
-	if (expect_data(recvbuff,NULL,NULL,1,AHOLA) < 0){
-		send_error(server_connfd, ERR60, NULL, true);
+	if (expect_data(recvbuff,NULL,1,AHOLA) < 0){
+		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
 

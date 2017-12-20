@@ -1,49 +1,10 @@
 #include "chatter.h"
 
-const char* server_help_message = 	"Usage:\n./server [-he] [-N num] PORT_NUMBER MOTD\n\n"
-									"-e\t\t\tEcho messages received on server's stdout.\n"
-									"-h\t\t\tDisplays this help menu.\n"
-									"-N num\t\t\tSpecifies maximum number of chat rooms allowed on server. (Default = 5)\n"
-									"PORT_NUMBER\t\tPort number to listen on. (Must be non-zero)\n"
-									"MOTD\t\t\tMessage to display to the client when they connect.\n";
-
-
-const char* client_help_message = 	"Usage:\n./client [-hc] NAME SERVER_IP SERVER_PORT\n\n"
-									"-c\t\t\tRequests to server to create a new user NAME\n"
-									"-h\t\t\tDisplays this help menu.\n"
-									"NAME\t\t\tUsername to use when logging in. "
-									"If -c option is set, will attempt to create new user with specified name.\n"
-									"SERVER_IP\t\t\tIP address of server to connect to.\n"
-									"SERVER_PORT\t\tPort number to listen on. (Must be non-zero)\n";
-
-
-const char* password_rules =		"Please enter a password. (Must be at least 5 characters, "
-									"have at least one uppcase letter, one number, and one symbol.\n"
-									"Acceptable passwords follow regex: [!@#$0-9a-zA-Z]+\n";
-
-const char *accounts_filename = "accounts";
-
-const char *error_messages[] = {
-	"SORRY %s", "USER %s EXISTS", "%s DOES NOT EXIST", "ROOM EXISTS", "MAXIMUM ROOMS REACHED", "ROOM DOES NOT EXIST",
-	"USER NOT PRESENT", "NOT OWNER", "INVALID USER", "INVALID OPERATION", "INVALID PASSWORD", "INVALID FORMAT/NO CARRIAGE RETURN","INTERNAL SERVER ERROR"
-};
-
-const int error_codes[] = {0, 1, 2, 10, 11, 20, 30, 40, 41, 60, 61, 62, 100};
-
-const char *space = " ";
-const char *sprn = " \r\n";
-const char *rn = "\r\n";
-
-const char *verbs[] = {
-	"ALOHA!", "!AHOLA", "IAM", "IAMNEW","HI", "HINEW", "AUTH", "PASS", "NEWPASS", "ERR", "BYE"
-};
-
-// enum verbs{ALOHA_VERB, AHOLA_VERB, IAM_VERB, IAMNEW_VERB, NEWPASS_VERB, ERR_VERB};
 
 
 int send_data(int connfd, int verb, char *data){
 	char sendbuff[MAX_SEND];
-
+	int ret;
 	if (data != NULL){
 		snprintf(sendbuff,MAX_SEND,"%s %s \r\n",verbs[verb], data);
 	}
@@ -51,7 +12,11 @@ int send_data(int connfd, int verb, char *data){
 		snprintf(sendbuff,MAX_SEND,"%s \r\n",verbs[verb]);
 	}
 
-	return send(connfd,sendbuff,strlen(sendbuff),0);
+	ret = send(connfd,sendbuff,strlen(sendbuff),0);
+	if (ret < 0){
+		error("send_data encountered an error: %d %s", ret, strerror(ret));
+	}
+	return ret;
 }
 
 int recv_data(int connfd, char *recvbuff){
@@ -65,9 +30,9 @@ int recv_data(int connfd, char *recvbuff){
 //Accepts a variable length list of verbs. Upon finding one of the verbs,
 //it returns the enum index of the verb and populates data with the data.
 //returns -1 on error.
-int expect_data(char *recvbuff, char *request_data, char **errcode,int num_verbs, ...){
+int expect_data(char *recvbuff, char *request_data, int num_verbs, ...){
 
-	int index, verb_enum;
+	int index, verb_enum, error_code;
 	const char *verb;
 	char *saveptr = NULL;
 	char *tokenptr;
@@ -81,7 +46,35 @@ int expect_data(char *recvbuff, char *request_data, char **errcode,int num_verbs
 	//delimit it via a carriage return "\r\n".
 	// delimiter = (request_data != NULL) ? space : rn;
 	recv_verb = strtok_r(recvbuff, space, &saveptr);
-	info("recv_verb:%s\n",recv_verb);
+	debug("recv_verb:%s\n",recv_verb);
+
+	if (!strcmp(recv_verb,verbs[ERR])){
+		//take the rest of the message except for the carriage return
+		tokenptr = strtok_r(NULL,sprn, &saveptr);
+
+		//if there is no carriage return, message is improperly formatted
+    	if (tokenptr == NULL){
+ 			return -62;
+    	}
+
+    	//if the pointer passed is NULL, user doesnt want the message
+    	if (request_data != NULL){
+    		strcpy(request_data,tokenptr);
+    		debug("request data in expect_data: --%s--",request_data);
+    	}
+
+    	//get the error code
+    	tokenptr = strtok_r(NULL,space,&saveptr);
+    	if (tokenptr != NULL){
+    		error_code = strtol(tokenptr,NULL,10);
+    		if (errno != 0){
+	    		debug("error_code in expect_data: --%d--",error_code);
+	    		return error_code;
+    		}
+    	}
+
+    	return -62;
+	}
 
 
 	va_list arguments;
@@ -97,27 +90,132 @@ int expect_data(char *recvbuff, char *request_data, char **errcode,int num_verbs
     }
     va_end (arguments);
 
-    //this means we didn't find any of the verbs we expected.
-    if (index == num_verbs){
-    	return -1;
-    }
 
-    //if we found a verb we expected, point data to the rest of the message
+    //if we want the rest of the message (correct verb or error regardless)
+    //copy it into the request_data
     // TODO TODO LEFTOFF
     if (request_data != NULL){
     	tokenptr = strtok_r(NULL,sprn, &saveptr);
     	if (tokenptr == NULL){
- 			return ERR62;
+ 			return -62;
     	}
     	strcpy(request_data,tokenptr);
-
     }
 
-    return verb_enum;
+    //if we didn't find the verb, return -1.
+    return index == num_verbs ? -1 : verb_enum;
+}
 
+
+
+/*
+	char **recvptr - 	a pointer to a pointer that points to the recvbuff used to recv into.
+					 	This pointer gets modified by strtok to point to different parts of the
+					 	recv buffer as tokens gets parsed
+
+	char *message_data	a pointer to a buffer to copy the message data into. If NULL, don't copy.
+
+	int *error_code		a pointer to an integer, which is set to the error code if an error is found
+						should only be interpreted if value returned is < 0, or if ERR verb is returned
+
+	int num_verbs		the amount of different verbs we're interested in/accepting
+
+	...					variable length list of the verb enums we're interested in
+
+*/
+//returns -1 on unexpected errors, returns verb otherwise. 
+int expect_data2(char **recvptr, char *message_data, int *error_code, int num_verbs, ...){
+	int index, verb_enum;
+	const char *verb;
+	char *saveptr1, *saveptr2;
+	char *tokenptr;
+	char *recv_verb;
+	char *error_num;
+
+	// const char *delimiter;
+
+	//tokenptr points to first token
+	tokenptr = strtok_r(*recvptr, r, &saveptr1);
+	*recvptr = tokenptr;
+	debug("expect_data message token (sprn):%s\n",tokenptr);
+
+	//if no carriage return found, imporper formatting error
+	if (tokenptr == NULL){
+		*error_code = 62;
+		return -1;
+	}
+
+	//get verb
+	recv_verb = strtok_r(tokenptr, space, &saveptr2);
+	debug("expect_data recv_verb:%s\n",recv_verb);
+
+
+	//if the verb is ERR
+	if (!strcmp(recv_verb,verbs[ERR])){
+
+		//GET ERROR CODE
+		error_num = strtok_r(NULL, space, &saveptr2);
+		if (error_num != NULL){
+			*error_code = strtol(error_num,NULL,10);
+    		if (errno != 0){
+	    		debug("error_code in strtol in expect_data: %d %s",errno, strerror(errno));
+	    		return -1;
+    		}
+    		debug("expect_data found error code: %d", *error_code);
+		}
+		//if we couldn't find error code
+		else {
+			*error_code = 62;
+			return -1;
+		}
+
+		//if user interested in message_data, copy what's in the rest of the token into message_data
+		if (message_data != NULL)
+			strcpy(saveptr2,message_data);
+
+		return -ERR;
+	}
+
+
+
+	//if the verb is not ERR, see if its one of the ones we want.
+	va_list arguments;
+	va_start (arguments, num_verbs); 
+	for (index = 0; index < num_verbs; index++){
+		verb_enum = va_arg(arguments,int);
+		verb = verbs[verb_enum];
+
+		//if the verb we got is one of the ones we want
+		if (!strncmp(recv_verb,verb,strlen(recv_verb))) {
+			break;
+		}
+    }
+    va_end (arguments);
+
+    //if interested in message, copy it.
+    if (message_data != NULL){
+		strcpy(saveptr1,message_data);
+    }
+
+    return index == num_verbs ? -1 : verb_enum;
 
 }
 
+// void print_messagE(int verb, char *message_data)
+
+void handle_error(char *recvbuff, char *message_data, int error_code){
+	if (error_code == 62){
+		error("Received improperly formatted message: --%s--",recvbuff);
+	}
+	else {
+		if (message_data != NULL){
+			error("Received message: %s %s", verbs[ERR] ,message_data);
+		}
+		else {
+			error("Received unexpected message...");
+		}
+	}
+}
 
 
 
@@ -125,12 +223,15 @@ int expect_data(char *recvbuff, char *request_data, char **errcode,int num_verbs
 void send_error(int connfd, int error, char *message, bool close_connection){
 	char sendbuff[MAX_SEND];
 	char formatted_message[128];
+
+	if (error < 0)
+		error = -error;
 	if (message == NULL){
-		snprintf(sendbuff,MAX_SEND,"%s %d %s %s", verbs[ERR], error_codes[error],error_messages[error],rn);
+		snprintf(sendbuff,MAX_SEND,"%s %d %s %s", verbs[ERR], error,get_error(error),rn);
 	}
 	else {
-		snprintf(formatted_message,128,error_messages[error],message);
-		snprintf(sendbuff,MAX_SEND,"%s %d %s %s", verbs[ERR], error_codes[error],formatted_message,rn);
+		snprintf(formatted_message,128,get_error(error),message);
+		snprintf(sendbuff,MAX_SEND,"%s %d %s %s", verbs[ERR], error,formatted_message,rn);
 	}
 
 	send(connfd,sendbuff,strlen(sendbuff),0);
@@ -139,126 +240,18 @@ void send_error(int connfd, int error, char *message, bool close_connection){
 }
 
 
-//taken from https://stackoverflow.com/a/7775170/3664123
-void strip_char(char *str, char strip)
-{
-    char *p, *q;
-    for (q = p = str; *p; p++)
-        if (*p != strip)
-            *q++ = *p;
-    *q = '\0';
-}
 
 
-bool user_exists(char *username){
-	FILE *fp;
-	char *line, *cur_username, *saveptr;
-	size_t length = 0;
-	size_t bytes_read = 0;
+char *my_strtok(char *string, const char *delim, char **saveptr){
+	char *ptr;
+	int i;
 
-
-	fp = fopen(accounts_filename,"r");
-	if (fp == NULL){
-		return false;
-	}
-
-	while ((bytes_read = getline(&line, &length, fp)) != -1) {
-        strip_char(line,'\n');
-        cur_username = strtok_r(line,":",&saveptr);
-        if (cur_username == NULL){
-        	error("user accounts file is malformed.");
-        	exit(1);
-        }
-        if (!strcmp(username,cur_username)){
-        	fclose(fp);
-        	return true;
-        }
-
-    }
-
-    fclose(fp);
-    return false;
-}
-
-
-
-
-/*
-passwords must meet the f ollowing criteria to be valid:
-Must be at least 5 characters in leng th
-Must contain at least 1 uppercase character
-Must contain at least 1 symbol character
-Must contain at least 1 number character
-*/
-bool check_password(char *password){
-	int length, upper_count, symbol_count, number_count;
-	char *p;
-
-	length = upper_count = symbol_count = number_count = 0;
-	for (p = password; *p != '\0'; p++){
-		if (*p >= 'A' && *p <= 'Z')
-			upper_count++;
-		if (*p >= '0' && *p <= '9')
-			number_count++;
-		if (*p == '!' || *p == '@' || *p == '#' || *p == '$')
-			symbol_count++;
-
-
-		//if character is outside of the acceptable range ([!@#$0-9a-zA-Z])
-		if (!((*p >= 48 && *p <= 57) || (*p >=64 && *p <= 90) || (*p >= 97 && *p <= 122) || *p == 33 || *p == 35 || *p == 36)){
-			return false;
+	ptr = strstr(string,delim);
+	if (ptr != NULL){
+		for (i = 0; i < sizeof(delim) / sizeof(char); i++){
+			*(ptr + i) = 0;
 		}
-		length++;
-	}
-	return length >= 5;
-}
-
-
-unsigned int randint(){
-	unsigned int rand;
-	if (!RAND_bytes((unsigned char*)&rand, sizeof(unsigned int))){
-		error("RAND_bytes returned an error.");
-	}
-	return rand;
-}
-
-
-
-//assumed that user doesn't exist
-//be sure to write newline after writing username and password
-int create_user(char *username, char *password){
-	FILE *fp;
-	int salt;
-	unsigned char salted_user[MAX_USERNAME + sizeof(unsigned int)];
-	unsigned char hash[SHA_DIGEST_LENGTH];
-	char hash_digest[SHA_DIGEST_LENGTH*2]; //2 hexadecimal characters to represent each byte
-
-
-	if (!check_password(password)){
-		return ERR61;
 	}
 
-	fp = fopen(accounts_filename,"a");
-	if (fp == NULL){
-		return ERR100;
-	}
-
-	//generate salt for user
-	salt = randint();
-
-	snprintf((char*)salted_user,sizeof(salted_user),"%s%d",username,salt);
-	SHA1(salted_user, strlen((char*)salted_user), hash);
-
-	for (int i = 0; i < SHA_DIGEST_LENGTH; i++){
-		snprintf(hash_digest + i,2,"%02x",hash[i]);
-	}
-
-
-
-	fprintf(fp,"%s:%u:%s\n",username,salt,hash_digest);
-	fclose(fp);
-
-	return 0;
-
-
+	*saveptr = (ptr + i);
 }

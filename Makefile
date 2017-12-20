@@ -8,22 +8,39 @@ CXXFLAGS = -Wall -g -pthread
 
 all: server client
 
-server: server.o threadpool.o chatter.o
-	$(CXX) $(CXXFLAGS) -o server server.o threadpool.o chatter.o -lm -lssl -lcrypto
+server: server.o threadpool.o chatter.o auth.o utils.o vars.o errors.o
+	$(CXX) $(CXXFLAGS) -o server server.o threadpool.o chatter.o auth.o utils.o vars.o errors.o -lm -lssl -lcrypto
+
+
+
+client: client.o threadpool.o chatter.o auth.o utils.o vars.o errors.o 
+	$(CXX) $(CXXFLAGS) -o client client.o threadpool.o chatter.o auth.o utils.o vars.o errors.o -lm -lssl -lcrypto
+
 
 server.o: server.c threadpool.h chatter.h
 	$(CXX) $(CXXFLAGS) -c server.c
-
-client: client.o threadpool.o chatter.o
-	$(CXX) $(CXXFLAGS) -o client client.o threadpool.o chatter.o -lm -lssl -lcrypto
 
 client.o: client.c threadpool.h chatter.h
 	$(CXX) $(CXXFLAGS) -c client.c
 
 threadpool.o: threadpool.h
+	$(CXX) $(CXXFLAGS) -c threadpool.c
 
 chatter.o: chatter.h
 	$(CXX) $(CXXFLAGS) -c chatter.c
+
+auth.o: chatter.h
+	$(CXX) $(CXXFLAGS) -c auth.c
+
+utils.o: chatter.h	
+	$(CXX) $(CXXFLAGS) -c utils.c
+
+vars.o: chatter.h
+	$(CXX) $(CXXFLAGS) -c vars.c
+
+errors.o: chatter.h
+	$(CXX) $(CXXFLAGS) -c errors.c
+
 clean:
 	rm *.o client server 
 

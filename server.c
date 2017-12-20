@@ -54,74 +54,107 @@ void spawn_echo_thread(){
 }
 
 
-// void spawn_login_thread(int connfd){
-// 	int r;
-// 	pthread_t thread;
-// 	pthread_attr_t attr;
-
-// 	pthread_attr_init(&attr);
-// 	pthread_create(&thread,&attr,login_thread_func,connfd);				
-// }
-
-
-
-
-
-
-/*
-C > S | ALOHA! \r\n
-C < S | !AHOLA \r\n
-C > S | IAM <name> \r\n
-# <name> is user's name
-# Example: IAM cse320 \r\n
-*/
+//TODO configure locks for user authentication
 
 void iam_login(int connfd, char *client_username){
 	char recvbuff[MAX_RECV];
-	char client_password[MAX_PASSWORD];
+	char *recvptr = recvbuff;
+	int error_code, ret;
+	char message_data[MAX_RECV];
 
 	info("Client with username: \"%s\" is attempting login.", client_username);
+
+	if (user_logged_in(client_username)){
+		send_error(connfd, 3, client_username, false);
+		send_data(connfd, BYE, NULL);
+		close(connfd);
+		return;
+	}
+
 	if (user_exists(client_username)){
-		//continue with login
-		//prompt for password
+		//prompt client to send password
+		send_data(connfd,AUTH,client_username);
+		info("User exists, waiting for client to send password.");
+
+		recvptr = recvbuff;
+		recv_data(connfd,recvbuff);
+		if ((ret = expect_data2(&recvptr,message_data,&error_code,1,PASS)) < 0){
+			handle_error(recvbuff,message_data,error_code);
+			send_error(connfd, 60, NULL, true);
+			return;
+		}
+
+		//if user is authenticated successfully
+		if (authenticate_user(client_username,message_data) == 0){
+			send_data(connfd, HI, client_username);
+			login_user(client_username,connfd);
+		}
+
+		else {
+			send_error(connfd, 61, NULL, true);
+			return;
+		}
+	}
+
+	else {
+		send_error(connfd, 2, NULL, false);
+		send_data(connfd,BYE,NULL);
+		close(connfd);
+		return;
 	}
 }
 
 void iamnew_login(int connfd, char *client_username){
-	int ret;
 	char recvbuff[MAX_RECV];
-	char client_password[MAX_PASSWORD];
+	char *recvptr = recvbuff;
+	int error_code, ret;
+	char message_data[MAX_RECV];
 
 	info("Client with username: \"%s\" is attempting login and user creation.", client_username);
+
+	// if the user exists already
 	if (user_exists(client_username)){
 		//tell user no dice
 		//close connection.ERR 01 SORRY <name> \r\n
-		send_error(connfd, ERR01, client_username, false);
+		info("User %s already exists. Sending ERR01 and closing connection.", client_username);
+		send_error(connfd, 1, client_username, false);
 		send_data(connfd,BYE,NULL);
 		close(connfd);
 	}
+
 	else {
+		fill_user_slot(client_username);
+
 		send_data(connfd,HINEW,client_username);
+		recvptr = recvbuff;
 		recv_data(connfd,recvbuff);
-		if (expect_data(recvbuff,client_password,NULL,1,NEWPASS) < 0){
-			send_error(connfd, ERR60, NULL, true);
+		//expecting NEWPASS verb
+		if ((ret = expect_data2(&recvptr,message_data,&error_code,1,NEWPASS)) < 0){
+			handle_error(recvbuff,message_data,error_code);
+			release_user_slot(client_username);
+			send_error(connfd, 60, NULL, true);
 			return;
 		}
 
 		//check password
-		if (!check_password(client_password)){
-			send_error(connfd, ERR61, NULL, true);
+		if (!check_password(message_data)){
+			release_user_slot(client_username);
+			send_error(connfd, 61, NULL, false);
+			send_data(connfd,BYE,NULL);
+			close(connfd);
 			return;
 		}
 
 		//make the user
-		if ((ret = create_user(client_username, client_password))){
+		if ((ret = create_user(client_username, message_data))){
+			release_user_slot(client_username);
 			send_error(connfd, ret, NULL, true);
 			return;
 		}
 
 		//successful creation, send HI
 		send_data(connfd, HI, client_username);
+		login_user(client_username,connfd);
 
 	}
 }
@@ -130,18 +163,20 @@ void iamnew_login(int connfd, char *client_username){
 //should receive connected socket as argument.
 void *login_thread_func(void *arg){
 	thread_arg_t *thread_arg = arg;
-	int connfd;
-	int ret;
-	char client_username[MAX_USERNAME];
+	int connfd, ret, error_code;
+	char message_data[MAX_RECV];
 	char recvbuff[MAX_RECV];
+	char *recvptr = recvbuff;
+
 
 	connfd = *(int*)(thread_arg->arg);
 	info("Waiting to receive: %d", connfd);
 
 	//Receive first ALOHA! from client
 	recv(connfd,recvbuff,MAX_RECV,0);
-	if (expect_data(recvbuff,NULL,NULL,1,ALOHA) < 0){
-		send_error(connfd, ERR60, NULL, true);
+	if ((ret = expect_data2(&recvptr,NULL,&error_code,1,ALOHA)) < 0){
+		handle_error(recvbuff,NULL,error_code);
+		send_error(connfd, 60, NULL, true);
 		return NULL;
 	}
 
@@ -155,17 +190,19 @@ void *login_thread_func(void *arg){
 
 	//Wait for command from client. Either IAM or IAMNEW
 	info("Waiting for client to send verb.");
+	recvptr = recvbuff;
 	recv_data(connfd,recvbuff);
-	if ((ret = expect_data(recvbuff, client_username, NULL, 2, IAM, IAMNEW)) < 0){
-		send_error(connfd,ERR60, NULL, true);
+	if ((ret = expect_data2(&recvptr, message_data, &error_code,2, IAM, IAMNEW)) < 0){
+		handle_error(recvbuff,message_data,error_code);
+		send_error(connfd,60, NULL, true);
 		return NULL;
 	}
 
 
 	if (ret == IAM)
-		iam_login(connfd, client_username);
+		iam_login(connfd, message_data);
 	else if (ret == IAMNEW)
-		iamnew_login(connfd, client_username);
+		iamnew_login(connfd, message_data);
 	else {
 		error("expect_data has bugs in it.");
 		assert(false);
