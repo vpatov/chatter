@@ -1,11 +1,12 @@
 #include "chatter.h"
 
-const char* server_help_message = 	"Usage:\n./server [-he] [-N num] PORT_NUMBER MOTD\n\n"
+const char* server_help_message = 	"Usage:\n./server [-he] [-N num] PORT_NUMBER MOTD CONFIG_FILE\n\n"
 									"-e\t\t\tEcho messages received on server's stdout.\n"
 									"-h\t\t\tDisplays this help menu.\n"
 									"-N num\t\t\tSpecifies maximum number of chat rooms allowed on server. (Default = 5)\n"
 									"PORT_NUMBER\t\tPort number to listen on. (Must be non-zero)\n"
-									"MOTD\t\t\tMessage to display to the client when they connect.\n";
+									"MOTD\t\t\tMessage to display to the client when they connect.\n"
+									"CONFIG_FILE\t\tPath to the configuration file for the threadpool.\n";
 
 
 const char* client_help_message = 	"Usage:\n./client [-hc] NAME SERVER_IP SERVER_PORT\n\n"

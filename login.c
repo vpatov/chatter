@@ -203,14 +203,14 @@ void *login_thread_func(void *arg){
 
 
 	//Received aloha, proceed to send !AHOLA
-	info("aloha received");
+	//info("aloha received");
 	send_data(connfd,AHOLA,NULL);
 	// snprintf(sendbuff,MAX_SEND,"%s%s",verbs[AHOLA],rn);
 	// send(connfd,sendbuff,strlen(sendbuff),0);
 
 
 	//Wait for command from client. Either IAM or IAMNEW
-	info("Waiting for client to send verb.");
+	//info("Waiting for client to send verb.");
 	recv_data(connfd,recvbuff);
 	tokens = tokenize(recvbuff,sprn);
 	message = get_token(recvbuff,sprn,0);
