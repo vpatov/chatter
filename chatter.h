@@ -1,5 +1,6 @@
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h> 
 #include <unistd.h>
 #include <stdio.h>
@@ -18,21 +19,30 @@
 
 #define SA 				struct sockaddr
 #define SAin 			struct sockaddr_in
-#define MAX_RECV		1024
-#define MAX_SEND		1024
+#define MAX_MSG_SIZE	1024
+#define MAX_RECV		MAX_MSG_SIZE
+#define MAX_SEND		MAX_MSG_SIZE
 #define MAX_USERNAME	32
 #define MAX_PASSWORD	32
 #define MAX_USERS		64
+#define MAX_ROOMS		64
 
 
-/* --------------- server.c ----------------- */
+/* --------------- echo.c ----------------- */
 /* ------------------------------------------ */
 extern bool echo_mode;
 extern bool echo_flag;
+extern bool echo_running;
+
 extern pthread_t echo_thread;
 extern pthread_attr_t echo_thread_attr;
+
+void spawn_echo_thread();
+void *echo_thread_func(void *arg);
 /* ------------------------------------------ */
 /* ------------------------------------------ */
+
+
 
 
 
@@ -53,12 +63,31 @@ extern const char *accounts_filename;
 // extern const int error_codes[];
 
 
+/* ----------------- login.c ---------------- */
+/* ------------------------------------------ */
+extern char motd[MAX_MSG_SIZE];
+
+
+void iam_login_server(int connfd, char *client_username);
+void iamnew_login_server(int connfd, char *client_username);
+void *login_thread_func(void *arg);
+
+/* ------------------------------------------ */
+/* ------------------------------------------ */
 
 
 
-
-
-enum verbs_enum {ALOHA, AHOLA, IAM, IAMNEW, HI, HINEW, AUTH, PASS, NEWPASS, ERR, BYE, MSG, CREATER, RETAERC};
+enum verbs_enum {
+	ALOHA, AHOLA, IAM, IAMNEW, HI, HINEW, AUTH, 
+	PASS, NEWPASS, ERR, BYE, MSG, 
+	CREATER, RETAERC,
+	LISTR, RTSIL,
+	JOIN,NIOJ,
+	LEAVE,EVAEL,
+	KICK,KCIK,
+	TELL,LLET,
+	ECHO,ECHOP
+};
 extern const char *verbs[];
 /* ------------------------------------------ */
 /* ------------------------------------------ */
@@ -100,6 +129,14 @@ void lock_user_accounts(int track);
 void unlock_user_accounts(int track);
 void lock_user_info(int track);
 void unlock_user_info(int track);
+
+extern pthread_mutex_t room_mutex;
+void init_room_mutexes();
+void lock_rooms(int track);
+void unlock_rooms(int track);
+void lock_room_members(int track);
+void unlock_room_members(int track);
+
 /* ------------------------------------------ */
 /* ------------------------------------------ */
 
@@ -109,12 +146,13 @@ void unlock_user_info(int track);
 
 /* --------------- chatter.c ---------------- */
 /* ------------------------------------------ */
+extern char print_buff[MAX_MSG_SIZE];
+
 int send_data(int connfd, int verb, char *data);
 int recv_data(int connfd, char *recvbuff);
-int close_conn(int connfd);
 int expect_data(char *recvbuff, char *message_data, int *error_code, int num_verbs, ...);
 void send_error(int connfd, int error, char *message, bool close_connection);
-void handle_error(char *recvbuff, char *message_data, int error_code);
+void print_error(char *recvbuff, char *message_data, int error_code);
 int tokenize(char *string, const char *delim);
 char *get_token(char *string, const char *delim, int count);
 /* ------------------------------------------ */
@@ -174,12 +212,41 @@ user_info_t* login_user(char *username, int connfd);			//login the user
 int logout_user(char *username);								//logout the user, close the connection if not closed
 user_info_t* user_logged_in(char *username);					//see if user is logged in
 user_info_t* get_user_byfd(int connfd);							//get the user info by the socket fd
+user_info_t* get_user_byname(char *username);
 int get_num_users();
-void mark_user_ready(char *username);
+int mark_user_ready(char *username);
 /* ------------------------------------------ */
 /* ------------------------------------------ */
 
 
+/* ----------------- rooms.c ---------------- */
+/* ------------------------------------------ */
+typedef struct room_member room_member_t;
+struct room_member {
+	user_info_t *user;
+	bool owner;
+	room_member_t *next;
+};
 
 
+typedef struct room room_t;
+struct room {
+	char room_name[MAX_USERNAME];
+	bool private_room;
+	room_member_t *room_members;
+	room_t *next;
+};
 
+
+extern room_t *rooms;
+
+
+int create_room(char *room_name, user_info_t *user, bool private_room);
+room_t *get_room(char *room_name);
+int free_room_members(room_member_t *room_members);
+int add_room_member(room_t *room, char *username);
+int remove_room_member(room_t *room, char *username);
+int close_room(char *room_name);
+
+/* ------------------------------------------ */
+/* ------------------------------------------ */

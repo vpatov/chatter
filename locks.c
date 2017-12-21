@@ -1,6 +1,9 @@
 #include "chatter.h"
 
 
+/* ----------- User info and accounts ------------ */
+/* ----------------------------------------------- */
+
 pthread_mutex_t user_account_mutex;
 pthread_mutex_t user_info_mutex;
 
@@ -32,3 +35,36 @@ void lock_user_info(int track){
 void unlock_user_info(int track){
 	pthread_mutex_unlock(&user_info_mutex);
 }
+
+/* ----------------------------------------------- */
+/* ----------------------------------------------- */
+
+
+
+
+/* ------- Room structs and room members --------- */
+/* ----------------------------------------------- */
+
+pthread_mutex_t room_mutex;
+
+void init_room_mutexes(){
+	pthread_mutexattr_t room_mutex_attr;
+
+	pthread_mutexattr_init(&room_mutex_attr);
+
+	pthread_mutexattr_settype(&room_mutex_attr,PTHREAD_MUTEX_ERRORCHECK);
+		
+	pthread_mutex_init(&room_mutex, &room_mutex_attr);   
+}
+
+void lock_rooms(int track){
+	pthread_mutex_lock(&room_mutex);
+}
+
+void unlock_rooms(int track){
+	pthread_mutex_unlock(&room_mutex);
+}
+
+
+/* ----------------------------------------------- */
+/* ----------------------------------------------- */

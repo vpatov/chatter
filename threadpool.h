@@ -98,5 +98,6 @@ void 		get_expiration_time(struct timespec *abstime, uint16_t pool_linger);
 void		*do_work(void *arg);
 job_t 		*find_work(pool_t *pool);
 void 		add_to_thread_list(pool_t *pool, pthread_t *thread);
-void 		threadpool_test();
+int			test_threadpool();
+
 #endif

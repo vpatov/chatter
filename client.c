@@ -25,74 +25,16 @@ char recvbuff[MAX_RECV];
 char sendbuff[MAX_SEND];
 char stdinbuff[MAX_SEND];
 
-// TODO 1) handle this login protocol between client and server.
-// TODO 2) Create the shared data structures
-// TODO 3) Try to create a generic enforcement of the ALOHA protocol.
-// TODO 4) Client: parse command line args
-/*
-C > S | ALOHA! \r\n
-C < S | !AHOLA \r\n
-C > S | IAM <name> \r\n
-# <name> is user's name
-# Example: IAM cse320 \r\n
-*/
 
 
-// void
-// echo_client(FILE *fp, int sockfd)
-// {
-// 	int             maxfdp1, stdineof;
-// 	fd_set          rset;
-// 	char            buf[MAXLINE];
-// 	int             n;
+void close_conn(){
+	close(server_connfd);
+	exit(0);
+}
 
-// 	//timeout value for select
-// 	struct timeval tv;
-
-// 	stdineof = 0;
-// 	FD_ZERO(&rset);
-// 	for ( ; ; ) {
-// 		FD_ZERO(&rset);
-
-// 		if (stdineof == 0)
-// 		    FD_SET(fileno(fp), &rset);
-		
-// 		tv.tv_sec = 1;
-// 		tv.tv_usec = 100;
-
-
-// 	    FD_SET(sockfd, &rset);
-// 	    maxfdp1 = max(fileno(fp), sockfd) + 1;
-// 	    Select(maxfdp1, &rset, NULL, NULL, &tv);
-
-// 	    if (FD_ISSET(sockfd, &rset)) {  /* socket is readable */
-// 	    	if ( (n = read(sockfd, buf, MAXLINE)) == 0) {
-// 	            if (stdineof == 1)
-// 	                return;         /* normal termination */
-// 	            else
-// 					fprintf(stderr,"echo_client: server terminated prematurely\n");					
-// 				exit(0);
-// 	            }
-// 	    	Write(fileno(stdout), buf, n);
-// 	    }
-
-
-
-// 	    if (FD_ISSET(fileno(fp), &rset)) {  /* input is readable */
-// 		    if ((n = read(fileno(fp), buf, MAXLINE)) == 0) {
-// 	            stdineof = 1;
-// 	            FD_CLR(fileno(fp), &rset);
-// 				fprintf(stderr,"Connection Terminated.\n");
-// 	            continue;
-// 		    }
-
-// 		    Write(sockfd, buf, n);
-// 	    }
-
-//     }
-// }
-
-
+void print_motd(char *message){
+	printf(KWHT "%s" KNRM "\n", message);
+}
 
 void main_communication(){
 	
@@ -122,18 +64,30 @@ void main_communication(){
 			}
 
 			if (fds[0].revents & POLLHUP){
-				debug("Server disconnected.");
+				infow("Server disconnected.");
 				exit(0);
 			}
 			if (fds[0].revents & POLLRDHUP){
-				debug("Server disconnected.");
+				infow("Server disconnected.");
 				exit(0);
 
-				
+
 			}
 			if (fds[1].revents & POLLIN){
-				read(fileno(stdin), stdinbuff, MAX_SEND);
-				debug("Received from stdin: %s", stdinbuff);
+				ret = read(fileno(stdin), stdinbuff, MAX_SEND);
+				debug("Client ret: %d", ret);
+				if (ret > 0){
+					stdinbuff[ret] = '\0';
+				}
+				else {
+					infow("Standard input closed. Exiting...");
+					close(server_connfd);
+					exit(0);
+				}
+				strip_char(stdinbuff,'\n');
+
+
+				// TODO switch on commands
 
 				send_data(server_connfd,MSG,stdinbuff);
 			}
@@ -145,7 +99,7 @@ void main_communication(){
 
 }
 
-void iam_login(){
+void iam_login_client(){
 	int ret, error_code, tokens;
 	char *message;
 	char message_data[MAX_RECV];
@@ -158,7 +112,7 @@ void iam_login(){
 	message = get_token(recvbuff,sprn,0);
 	//expect an AUTH from server.
 	if ((ret = expect_data(recvbuff,message_data, &error_code,1,AUTH)) < 0){
-		handle_error(recvbuff,message_data,error_code);
+		print_error(recvbuff,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
@@ -166,12 +120,12 @@ void iam_login(){
 	//We got the AUTH, let's assert the username is the same
 	if (strcmp(username,message_data)){
 		error("Server responded with wrong username - Abort");
-		close(server_connfd);
+		close_conn();
 		return;
 	}
 
 	//Prompt user for password, and send it to server
-	fprintf(output,"Please enter your password:\n");
+	prompt("Please enter your password:");
 	scanf("%s",user_password);
 	send_data(server_connfd, PASS, user_password);
 
@@ -182,18 +136,40 @@ void iam_login(){
 	message = get_token(recvbuff,sprn,0);
 	if (expect_data(recvbuff, message_data, &error_code, 1, HI) < 0){
 		// our password may have been wrong
-		handle_error(recvbuff,message_data,error_code);
+		print_error(recvbuff,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
 
 	info("Client successfully logged in as existing user: %s", username);
+
+
+
+	if (tokens > 1){
+		message = get_token(recvbuff,sprn,1);
+		if (message != NULL){
+			if (expect_data(message, message_data, &error_code, 1, ECHO) < 0){
+				// our password may have been wrong
+				print_error(recvbuff,message_data,error_code);
+				send_error(server_connfd, 60, NULL, true);
+				return;
+			}
+			printf(KWHT "%s" KNRM "\n" , message_data);
+		}
+		else {
+			error("get_token returned NULL. Could not get MOTD");
+		}
+	}
+
+	
+
+
 	main_communication();
 
 }
 
 
-void iamnew_login(){
+void iamnew_login_client(){
 	int ret, error_code, tokens;
 	char message_data[MAX_RECV];
 	char user_password[MAX_PASSWORD];
@@ -207,7 +183,7 @@ void iamnew_login(){
 	message = get_token(recvbuff,sprn,0);	
 	//expect a HINEW <username> from server.
 	if ((ret = expect_data(recvbuff,message_data,&error_code,1,HINEW)) < 0){
-		handle_error(recvbuff,message_data,error_code);
+		print_error(recvbuff,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
@@ -244,12 +220,32 @@ void iamnew_login(){
 	tokens = tokenize(recvbuff,sprn);
 	message = get_token(recvbuff,sprn,0);
 	if ((ret = expect_data(recvbuff,message_data,&error_code,1,HI)) < 0){
-		handle_error(recvbuff, message_data, error_code);
+		print_error(recvbuff, message_data, error_code);
+		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
 
-	//We are now connected
 	info("Client successfully logged in as new user: %s", username);
+
+	
+	if (tokens > 1){
+		message = get_token(recvbuff,sprn,1);
+		if (message != NULL){
+			if (expect_data(message, message_data, &error_code, 1, ECHO) < 0){
+				// our password may have been wrong
+				print_error(recvbuff,message_data,error_code);
+				send_error(server_connfd, 60, NULL, true);
+				return;
+			}
+			printf(KWHT "%s" KNRM "\n" , message_data);
+		}
+		else {
+			error("get_token returned NULL. Could not get MOTD");
+		}
+	}
+
+
+	//We are now connected
 	main_communication();
 
 
@@ -271,10 +267,10 @@ void login_protocol()
 	info("Received %s from server.", verbs[AHOLA]);
 
 	if (create_user_mode){
-		iamnew_login();
+		iamnew_login_client();
 	}
 	else {
-		iam_login();
+		iam_login_client();
 	}
 }
 

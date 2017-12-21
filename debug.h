@@ -17,10 +17,21 @@
 #define KWHT "\033[1;37m"
 #define KBWN "\033[0;33m"
 
+#define PRERR "\x1B[38;2;210;60;60m" "\x1B[48;2;5;5;5m"
+
 #define INFO_COLOR 		"\x1B[1;34m"
 #define ERROR_COLOR		"\x1B[1;31m"
 #define PRIVATE_COLOR	"\x1B[1;35m"	
 #define DEFAULT_COLOR	"\x1B[0m"	
+
+
+#define SEND_FG "\x1B[38;2;90;90;255m" 
+#define SEND_BG "\x1B[48;2;10;10;10m"
+
+#define RECV_FG "\x1B[38;2;90;255;90m"
+#define RECV_BG "\x1B[48;2;10;10;10m"
+
+
 
 
 #define i_1e3 1000
@@ -34,20 +45,69 @@ static inline unsigned int thread_id() {
 #ifndef DEBUG
 #define PRINTSTMNT(level, fmt, ...)                                                                                    \
     do {                                                                                                               \
-        fprintf(stderr, level ": " KNRM fmt NL, thread_id(), ##__VA_ARGS__);                                                        \
+        fprintf(stderr, level   fmt KNRM NL, thread_id(), ##__VA_ARGS__);                                                        \
     } while (0)
 #else
 #define PRINTSTMNT(level, fmt, ...)                                                                                    \
     do {                                                                                                               \
         fprintf(                                                                                                       \
-            stderr, level ": %s:%s:%d " KNRM fmt NL, thread_id(), _FILE_, _extension_ _FUNCTION_, _LINE_, ##__VA_ARGS__);   \
+            stderr, level "%s:%s:%d " KNRM fmt NL, thread_id(), _FILE_, _extension_ _FUNCTION_, _LINE_, ##__VA_ARGS__);   \
     } while (0)
 #endif
 
-#define debug(S, ...) PRINTSTMNT(KMAG "%02X | DEBUG", S, ##__VA_ARGS__)
-#define info(S, ...) PRINTSTMNT(KBLU "%02X | INFO", S, ##__VA_ARGS__)
-#define warn(S, ...) PRINTSTMNT(KYEL "%02X | WARN", S, ##__VA_ARGS__)
-#define success(S, ...) PRINTSTMNT(KGRN "%02X | SUCCESS", S, ##__VA_ARGS__)
-#define error(S, ...) PRINTSTMNT(KRED "%02X | ERROR", S, ##__VA_ARGS__)
+
+//print out without thread id.
+#define PRINTSTMNTW(level, fmt, ...)                                                                                    \
+    do {                                                                                                               \
+        fprintf(stderr, level   fmt  KNRM NL , ##__VA_ARGS__);                                                        \
+    } while (0)
+
+
+//print out sendecho
+#define PRINTSTMNTS(level, fmt, ...)                                                                                    \
+    do {                                                                                                               \
+        fprintf(stdout, level  SEND_BG fmt  KNRM NL , ##__VA_ARGS__);                                                        \
+    } while (0)
+
+
+//print out recvecho
+#define PRINTSTMNTR(level, fmt, ...)                                                                                    \
+    do {                                                                                                               \
+        fprintf(stdout, level  RECV_BG fmt KNRM NL , ##__VA_ARGS__);                                                        \
+    } while (0)
+
+#define PRINTSTMNTP(fmt, ...)                                                                                    \
+    do {                                                                                                               \
+        fprintf(stdout, KCYN fmt  KNRM NL, ##__VA_ARGS__);                                                        \
+    } while (0)
+
+
+#define PRINTSTMNTE(fmt, ...)                                                                                    \
+    do {                                                                                                               \
+        fprintf(stdout, PRERR fmt  KNRM NL , ##__VA_ARGS__);                                                        \
+    } while (0)
+
+
+
+#define debug(S, ...) PRINTSTMNT(KMAG 						"%08X | DEBUG   :  ", S, ##__VA_ARGS__)
+#define info(S, ...) PRINTSTMNT(KBLU 						"%08X | INFO    :  ", S, ##__VA_ARGS__)
+#define warn(S, ...) PRINTSTMNT(KYEL 						"%08X | WARN    :  ", S, ##__VA_ARGS__)
+#define success(S, ...) PRINTSTMNT(KGRN 					"%08X | SUCCESS :  ", S, ##__VA_ARGS__)
+#define error(S, ...) PRINTSTMNT(KRED 						"%08X | ERROR   :  ", S, ##__VA_ARGS__)
+
+
+
+#define debugw(S, ...) PRINTSTMNTW(KMAG 				"DEBUG              :  ", S, ##__VA_ARGS__)
+#define infow(S, ...) PRINTSTMNTW(KBLU  				"INFO               :  ", S, ##__VA_ARGS__)
+#define warnw(S, ...) PRINTSTMNTW(KYEL 					"WARN               :  ", S, ##__VA_ARGS__)
+#define successw(S, ...) PRINTSTMNTW(KGRN 				"SUCCESS            :  ", S, ##__VA_ARGS__)
+#define errorw(S, ...) PRINTSTMNTW(KRED 				"ERROR              :  ", S, ##__VA_ARGS__)
+
+#define sendecho(S, ...) PRINTSTMNTS(SEND_FG 			"ECHO (Sending)     :  ", S, ##__VA_ARGS__)
+#define recvecho(S, ...) PRINTSTMNTR(RECV_FG   			"ECHO (Receiving)   :  ", S, ##__VA_ARGS__)
+
+#define errorp(S, ...) PRINTSTMNTE(S, ##__VA_ARGS__)
+
+#define prompt(S, ...) PRINTSTMNTP(S, ##__VA_ARGS__)
 
 #endif /* DEBUG_H */

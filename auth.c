@@ -145,7 +145,7 @@ int authenticate_user(char *username, char *password){
 			snprintf((char*)salted_password,sizeof(salted_password),"%s%s",password,cur_user->salt);
 
 			//hash the salted password
-			info("hashing salted_password: %s",salted_password);
+			infow("hashing salted_password: %s",salted_password);
 			SHA1(salted_password, strlen((char*)salted_password), hash);
 
 			//get the printable digest
@@ -153,7 +153,7 @@ int authenticate_user(char *username, char *password){
 				sprintf(hash_digest + (i*2),"%02x",hash[i]);
 			}
 
-			debug("hash digest of salted password: --%s--", hash_digest);
+			debugw("hash digest of salted password: --%s--", hash_digest);
 
 			//compare it to the database
 			if (!strcmp(hash_digest,cur_user->password_hash)){
@@ -276,6 +276,7 @@ int create_user(char *username, char *password){
 
 
 	if (!check_password(password)){
+		assert(false);
 		return -61;
 	}
 
@@ -283,7 +284,7 @@ int create_user(char *username, char *password){
 	salt = randint();
 
 	snprintf((char*)salted_password,sizeof(salted_password),"%s%08x",password,salt);
-	info("hashing salted_password: %s",salted_password);
+	infow("hashing salted_password: %s",salted_password);
 
 	//should be 6eebe39d0f399e8a1d04a55a926cff7c1108ea81 for Vasia2!ca976175
 
@@ -293,7 +294,7 @@ int create_user(char *username, char *password){
 		sprintf(hash_digest + (i*2),"%02x",hash[i]);
 	}
 
-	debug("(creation) hash digest of salted password: --%s--", hash_digest);
+	debugw("(creation) hash digest of salted password: --%s--", hash_digest);
 
 
 	if (get_user_accounts() == NULL){
@@ -357,10 +358,10 @@ int logout_user(char *username){
 
 			//close the connection if its not already closed.
 			if (fcntl(user->connfd, F_GETFD) == EBADF){
-				debug("User (%s) connection is already closed", username);
+				debugw("User (%s) connection is already closed", username);
 			}
 			else {
-				debug("Closing (%s) connection socket.", username);
+				debugw("Closing (%s) connection socket.", username);
 				close(user->connfd);
 			}
 
@@ -408,6 +409,21 @@ user_info_t* get_user_byfd(int connfd){
 	return NULL;
 }
 
+user_info_t* get_user_byname(char *username){
+	user_info_t *user;
+
+	user = user_infos;
+	while (user != NULL){
+		if (!strcmp(username,user->username)){
+			return user;
+		}
+		user = user->next;
+	}
+	
+	return NULL;
+}
+
+
 int get_num_users(){
 	user_info_t *user;
 	int count = 0;
@@ -421,15 +437,18 @@ int get_num_users(){
 	return count;
 }
 
-void mark_user_ready(char *username){
+int mark_user_ready(char *username){
 	user_info_t *user;
 
 	user = user_infos;
 	while (user != NULL){
 		if (!strcmp(username,user->username)){
 			user->ready = true;
+			return 0;
 		}
 		user = user->next;
 	}
+	error("mark_user_ready couldn't find user: %s", username);
+	return 1;
 
 }

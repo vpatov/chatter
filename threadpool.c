@@ -9,7 +9,7 @@
 pool_t *circular_pool_list;
 
 int global_sum = 0;
-
+int threadpool_debug = 0;
 
 
 
@@ -36,7 +36,7 @@ pool_create(uint16_t min, uint16_t max, uint16_t linger, pthread_attr_t* attr)
 
 	// signal(SIGALRM,thread_cleanup);
 
-	info("Creating a threadpool with min: %u, max: %u, linger: %u",min,max,linger);
+	infow("Creating a threadpool with min: %u, max: %u, linger: %u",min,max,linger);
 	pool = malloc(sizeof(pool_t));
 
 
@@ -151,8 +151,11 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 
 	
 	r = pthread_mutex_lock(&pool->pool_mutex);									//acquire the lock before making changes to the pool structure
-	if (r != 0){																	
-		debug("pthread_mutex_lock in pool_queue returned non-zero: %d %s", r, strerror(r));
+	if (r != 0){
+		if (threadpool_debug){																
+			debug("pthread_mutex_lock in pool_queue returned non-zero: %d %s", r, strerror(r));
+		}
+
 		if (r == EOWNERDEAD){													//since we're using robust lock.
 			pthread_mutex_consistent(&pool->pool_mutex);
 		}
@@ -196,7 +199,7 @@ pool_queue(pool_t* pool, void* (*func)(void *), void* arg)
 	}
 
 	else {
-		info("Maximum number of threads has been reached. Adding onto job queue...");
+		infow("Maximum number of threads has been reached. Adding onto job queue...");
 	}
 
 	pthread_mutex_unlock(&pool->pool_mutex);									//release the lock after the changes to the pool have been made.
@@ -336,13 +339,18 @@ void
 			if (is_idle){														//we found a job, we're no longer idle
 				pool->pool_idle--;												//decrement the pool_idle counter
 				is_idle = 0;
-				// debug("Pool: %p\tDecremented pool_idle to %d", pool,pool->pool_idle);
+				if (threadpool_debug){
+					debug("Pool: %p\tDecremented pool_idle to %d", pool,pool->pool_idle);
+				}
 
 			}
 			thread_arg.arg = job->job_arg;										//populate the thread_arg, which will hold pool and job_arg
 			pthread_mutex_unlock(&pool->pool_mutex);							//other threads need to do work!
 
-			//debug("taking on job at %p", job);
+			if (threadpool_debug){
+				debug("taking on job at %p", job);
+			}
+
 			job->job_func(&thread_arg);											//call the work function of interest.
 
 
@@ -377,8 +385,11 @@ void
 					continue;													//go back to try to find work
 				}
 
-				 //debug("This thread can't find any more jobs, "
-				//		"and time has run out -- exiting.");
+
+				if (threadpool_debug){
+					debug("This thread can't find any more jobs, "
+						"and time has run out -- exiting.");
+				}
 
 
 				close_thread:
@@ -628,6 +639,8 @@ void *test_routine2(void *arg){
 int test_threadpool(){
 	int i,a;
 	pool_t *pool;
+
+	threadpool_debug = 1;
 
 	pthread_mutexattr_t *attr;
 	pthread_mutex_t *mutex;
