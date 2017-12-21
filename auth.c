@@ -145,7 +145,7 @@ int authenticate_user(char *username, char *password){
 			snprintf((char*)salted_password,sizeof(salted_password),"%s%s",password,cur_user->salt);
 
 			//hash the salted password
-			infow("hashing salted_password: %s",salted_password);
+			//infow("hashing salted_password: %s",salted_password);
 			SHA1(salted_password, strlen((char*)salted_password), hash);
 
 			//get the printable digest
@@ -153,19 +153,19 @@ int authenticate_user(char *username, char *password){
 				sprintf(hash_digest + (i*2),"%02x",hash[i]);
 			}
 
-			debugw("hash digest of salted password: --%s--", hash_digest);
+			//debugw("hash digest of salted password: --%s--", hash_digest);
 
 			//compare it to the database
 			if (!strcmp(hash_digest,cur_user->password_hash)){
 				return 0;
 			}
 			else {
-				return -61;
+				return 61;
 			}	
 		}
 	}
 
-	return -100;
+	return 100;
 
 
 }
@@ -234,7 +234,7 @@ int write_user_accounts(){
 	fp = fopen(accounts_filename,"w");
 	if (fp == NULL){
 		error("couldn't open accounts file.");
-		return -100;
+		return 100;
 	}
 
 
@@ -277,7 +277,7 @@ int create_user(char *username, char *password){
 
 	if (!check_password(password)){
 		assert(false);
-		return -61;
+		return 61;
 	}
 
 	//generate salt for user
@@ -294,12 +294,12 @@ int create_user(char *username, char *password){
 		sprintf(hash_digest + (i*2),"%02x",hash[i]);
 	}
 
-	debugw("(creation) hash digest of salted password: --%s--", hash_digest);
+	infow("(creation) hash digest of salted password: --%s--", hash_digest);
 
 
 	if (get_user_accounts() == NULL){
 		error("Couldn't get user accounts from file.");
-		return -100;
+		return 100;
 	}
 
 	while (user_index < num_user_accounts){
@@ -361,7 +361,8 @@ int logout_user(char *username){
 				debugw("User (%s) connection is already closed", username);
 			}
 			else {
-				debugw("Closing (%s) connection socket.", username);
+				//debugw("Closing (%s) connection socket.", username);
+				infow("Connection with \"%s\" closed.", username);
 				close(user->connfd);
 			}
 
@@ -375,7 +376,7 @@ int logout_user(char *username){
 		prev = user;
 		user = user->next;
 	}
-	return -1;
+	return 1;
 }
 
 

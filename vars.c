@@ -34,11 +34,15 @@ const char *verbs[] = {
 	"ALOHA!", "!AHOLA", "IAM", "IAMNEW","HI", "HINEW", "AUTH", 
 	"PASS", "NEWPASS", "ERR", "BYE", "MSG", 
 	"CREATER", "RETAERC",
+	"CREATEP", "PETAERC",
 	"LISTR", "RTSIL",
+	"LISTU", "UTSIL",
 	"JOIN","NIOJ",
+	"JOINP","PNIOJ",
 	"LEAVE","EVAEL",
 	"KICK","KCIK",
 	"TELL","LLET",
-	"ECHO", "ECHOP"
+	"ECHO", "ECHOP",
+	"NOP", "QUIT"
 };
 

@@ -15,7 +15,10 @@ void spawn_login_thread();
 void *echo_thread_func(void *arg);
 
 
-
+void pipe_handler(int signo){
+	error("SIGPIPE");
+	return;
+}
 
 
 void *check_user_connections_func(void *arg){
@@ -102,14 +105,17 @@ void
 server_init()
 {
 	output = stdout;
+	printf(KWHT "Chatter Server (created by Vasia Patov for 522 w/Jwong) :)" KNRM "\n\n\n");
+
 	init_user_mutexes();
 	init_room_mutexes();
 	pthread_attr_init(&echo_thread_attr);
 
+	assert(signal(SIGPIPE, pipe_handler) != SIG_ERR);
+
 	threadpool = pool_create(2,4,500,NULL);
 
 	// pool_queue(threadpool,check_user_connections_func,NULL);
-
 
     infow("Starting server. Currently listening on port: %d", server_port);
 }

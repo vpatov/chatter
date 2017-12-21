@@ -3,6 +3,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h> 
 #include <unistd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <error.h>
@@ -22,25 +23,14 @@
 #define MAX_MSG_SIZE	1024
 #define MAX_RECV		MAX_MSG_SIZE
 #define MAX_SEND		MAX_MSG_SIZE
+#define MAX_CMD			64
 #define MAX_USERNAME	32
 #define MAX_PASSWORD	32
 #define MAX_USERS		64
 #define MAX_ROOMS		64
 
 
-/* --------------- echo.c ----------------- */
-/* ------------------------------------------ */
-extern bool echo_mode;
-extern bool echo_flag;
-extern bool echo_running;
 
-extern pthread_t echo_thread;
-extern pthread_attr_t echo_thread_attr;
-
-void spawn_echo_thread();
-void *echo_thread_func(void *arg);
-/* ------------------------------------------ */
-/* ------------------------------------------ */
 
 
 
@@ -81,13 +71,18 @@ enum verbs_enum {
 	ALOHA, AHOLA, IAM, IAMNEW, HI, HINEW, AUTH, 
 	PASS, NEWPASS, ERR, BYE, MSG, 
 	CREATER, RETAERC,
+	CREATEP, PETAERC,
 	LISTR, RTSIL,
+	LISTU, UTSIL,
 	JOIN,NIOJ,
+	JOINP,PNIOJ,
 	LEAVE,EVAEL,
 	KICK,KCIK,
 	TELL,LLET,
-	ECHO,ECHOP
+	ECHO,ECHOP,
+	NOP, QUIT
 };
+
 extern const char *verbs[];
 /* ------------------------------------------ */
 /* ------------------------------------------ */
@@ -149,6 +144,7 @@ void unlock_room_members(int track);
 extern char print_buff[MAX_MSG_SIZE];
 
 int send_data(int connfd, int verb, char *data);
+int send_data_custom(int connfd, char *data);
 int recv_data(int connfd, char *recvbuff);
 int expect_data(char *recvbuff, char *message_data, int *error_code, int num_verbs, ...);
 void send_error(int connfd, int error, char *message, bool close_connection);
@@ -176,6 +172,7 @@ char *inet4_ntop(char *dst, unsigned int addr);
 
 /* ----------------- auth.c ----------------- */
 /* ------------------------------------------ */
+
 typedef struct user_account user_account_t; 					
 struct user_account {
 	char username[MAX_USERNAME+1];
@@ -191,6 +188,7 @@ struct user_info {
 	char username[MAX_USERNAME+1];
 	int connfd;
 	bool ready;
+	bool in_room;
 	user_info_t *next;
 };
 extern user_info_t *user_infos;									// logged in users, and their socket descriptors
@@ -233,20 +231,49 @@ typedef struct room room_t;
 struct room {
 	char room_name[MAX_USERNAME];
 	bool private_room;
+	int room_id;
 	room_member_t *room_members;
+	char password[MAX_PASSWORD];	//no hashing
 	room_t *next;
 };
 
 
 extern room_t *rooms;
+extern size_t num_rooms;
+extern int room_inc_id;
 
 
-int create_room(char *room_name, user_info_t *user, bool private_room);
+
+
+int create_room(char *room_name, user_info_t *user, bool private_room, char *password);
 room_t *get_room(char *room_name);
+room_t *get_room_by_id(int room_id);
 int free_room_members(room_member_t *room_members);
-int add_room_member(room_t *room, char *username);
+int add_room_member(room_t *room, user_info_t *user, char *password);
 int remove_room_member(room_t *room, char *username);
-int close_room(char *room_name);
+int remove_user_from_rooms(char *username);
+int close_room(room_t *room);
+void list_rooms(char *sendbuff);
+int check_room(room_t *room);
+int close_room_by_name(char *room_name);
+
+/* ------------------------------------------ */
+/* ------------------------------------------ */
+
+
+
+/* --------------- echo.c ----------------- */
+/* ------------------------------------------ */
+extern bool echo_mode;
+extern bool echo_flag;
+extern bool echo_running;
+
+extern pthread_t echo_thread;
+extern pthread_attr_t echo_thread_attr;
+
+void spawn_echo_thread();
+void *echo_thread_func(void *arg);
+void echo_all_room(room_t *room, int verb, char *message_data);
 
 /* ------------------------------------------ */
 /* ------------------------------------------ */

@@ -13,6 +13,7 @@ const error_message_t error_messages[] = {
     { .code = 10,   .msg = "ROOM EXISTS"},
     { .code = 11,   .msg = "MAXIMUM ROOMS REACHED"},
     { .code = 20,   .msg = "ROOM %s DOES NOT EXIST"},
+    { .code = 21,   .msg = "ROOM %s IS PRIVATE"},
     { .code = 30,   .msg = "USER NOT PRESENT"},
     { .code = 40,   .msg = "NOT OWNER"},
     { .code = 41,   .msg = "INVALID USER"},

@@ -422,7 +422,6 @@ void
 
 			}
 			else {
-				// TODO for some reason this returns EINVAL some of the time - no idea why.
 				error("ptread_cond_timedwait return error: %d %s", r, strerror(r));
 
 			}

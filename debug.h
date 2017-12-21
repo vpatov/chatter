@@ -28,6 +28,9 @@
 #define SEND_FG "\x1B[38;2;90;90;255m" 
 #define SEND_BG "\x1B[48;2;10;10;10m"
 
+#define ECHO_FG "\x1B[38;2;144;178;206m"
+#define PRIV_FG KMAG
+
 #define RECV_FG "\x1B[38;2;90;255;90m"
 #define RECV_BG "\x1B[48;2;10;10;10m"
 
@@ -70,6 +73,19 @@ static inline unsigned int thread_id() {
     } while (0)
 
 
+//print out echo
+#define PRINTSTMNTECHO(level, fmt, ...)                                                                                    \
+    do {                                                                                                               \
+        fprintf(stdout, level fmt  KNRM NL , ##__VA_ARGS__);                                                        \
+    } while (0)
+
+
+//print out private message
+#define PRINTSTMNTPRIV(level, name, fmt, ...)                                                                                    \
+    do {                                                                                                               \
+        fprintf(stdout, level fmt  KNRM NL , name, ##__VA_ARGS__);                                                        \
+    } while (0)
+
 //print out recvecho
 #define PRINTSTMNTR(level, fmt, ...)                                                                                    \
     do {                                                                                                               \
@@ -108,6 +124,13 @@ static inline unsigned int thread_id() {
 
 #define errorp(S, ...) PRINTSTMNTE(S, ##__VA_ARGS__)
 
+#define promptnl(S, ...) PRINTSTMNTP(S, ##__VA_ARGS__)
 #define prompt(S, ...) PRINTSTMNTP(S, ##__VA_ARGS__)
+
+#define printecho(S, ...) PRINTSTMNTECHO(ECHO_FG        "ECHO server        :  ", S, ##__VA_ARGS__)
+#define printpriv(name, S, ...) PRINTSTMNTPRIV(PRIV_FG  "ECHOP %s: ", name, S, ##__VA_ARGS__)
+
+
+
 
 #endif /* DEBUG_H */

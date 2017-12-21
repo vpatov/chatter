@@ -70,12 +70,12 @@ void iam_login_server(int connfd, char *client_username){
 
 		else {
 			lock_user_info(5);
+			send_error(connfd, 61, NULL, true);
 			logout_user(client_username);
 			unlock_user_info(5);
 
 			unlock_user_accounts(3);
 
-			send_error(connfd, 61, NULL, false);
 			return;
 		}
 	}
@@ -101,7 +101,7 @@ void iamnew_login_server(int connfd, char *client_username){
 
 	lock_user_info(1); 
 	if (user_logged_in(client_username)){
-		send_error(connfd, 1, NULL, true);
+		send_error(connfd, 1, client_username, true);
 		unlock_user_info(1);
 		return;
 	}

@@ -8,11 +8,57 @@ pthread_t echo_thread;
 pthread_attr_t echo_thread_attr;
 
 
+void relieve_user(char *username){
+	lock_rooms(1);
+	remove_user_from_rooms(username);
+	unlock_rooms(1);
+	lock_user_info(1);
+	logout_user(username);
+	unlock_user_info(1);
+}
+
 void process_request(char *username, char *recvbuff){
 
 }
 
+void echo_all(int verb, char *message_data){
+	user_info_t *cur_user;
+	lock_user_info(1);
+	cur_user = user_infos;
+	while(cur_user != NULL){
+		if (cur_user->ready){
+			send_data(cur_user->connfd,verb,message_data);
+		}
+		cur_user = cur_user->next;
+	}
+	unlock_user_info(1);
+}
 
+void echo_all_waiting(int verb, char *message_data){
+	user_info_t *cur_user;
+	lock_user_info(1);
+	cur_user = user_infos;
+	while(cur_user != NULL){
+
+		if (cur_user->ready && !cur_user->in_room){
+			send_data(cur_user->connfd,verb,message_data);
+		}
+		cur_user = cur_user->next;
+	}
+	unlock_user_info(1);
+}
+
+void echo_all_room(room_t *room, int verb, char *message_data){
+	room_member_t *room_member;
+
+	room_member = room->room_members;
+
+	while(room_member != NULL){
+		send_data(room_member->user->connfd,ECHO,message_data);
+		room_member = room_member->next;
+	}
+
+}
 
 // in the waiting room, users can:
 // 1) Create a room
@@ -22,18 +68,21 @@ void process_request(char *username, char *recvbuff){
 
 //recvbuff contains full message.
 void process_wait_room_request(char *username, char *recvbuff){
-	int tokens, ret, error_code, connfd;
+	int tokens, ret, error_code, connfd, room_id;
 	char message_data[MAX_RECV];
+	char sendbuff[MAX_SEND];
 	char *message_body;
+	char *room_name, *room_id_str, *password;
 	user_info_t *user;
+	room_t *room;
 
 	lock_user_info(1);
 	user = get_user_byname(username);
 	unlock_user_info(1);
 
+	//That means user disconnected before we got to finish
 	if (user == NULL){
-		error("process_wait_room_request found request for non-existent user: %s",username);
-		assert(false);
+		return;
 	}
 
 	connfd = user->connfd;
@@ -41,31 +90,188 @@ void process_wait_room_request(char *username, char *recvbuff){
 
 
 	tokens = tokenize(recvbuff,sprn);
+	if (tokens == 0){
+		error("tokenize: malformed message");
+	}
 	message_body = get_token(recvbuff,sprn,0);
 
-	if ((ret = expect_data(recvbuff,message_data, &error_code,
-		4,CREATER, LISTR, JOIN, BYE)) < 0){
-		print_error(recvbuff,message_data,error_code);
-		send_error(connfd, 60, NULL, true);
-		return;
+
+	if (user->in_room){
+		if ((ret = expect_data(recvbuff,message_data, &error_code,
+			5,LEAVE,LISTU,TELL,KICK,QUIT)) < 0){
+			print_error(recvbuff,message_data,error_code);
+			send_error(connfd, 60, NULL, false);
+			return;
+		}
+		switch(ret){
+
+		}	
 	}
 
-	switch(ret){
-		case CREATER: {
-			debug("Received C");
-			//TODO leftoff
-			break;
+	else {
+		if ((ret = expect_data(recvbuff,message_data, &error_code,
+			6,CREATER, CREATEP, LISTR, JOIN, JOINP, QUIT)) < 0){
+			print_error(recvbuff,message_data,error_code);
+			send_error(connfd, 60, NULL, false);
+			return;
 		}
-		case LISTR: {
-			break;
-		}
-		case JOIN: {
-			break;
-		}
-		case BYE: {
-			break;
+		switch(ret){
+			case CREATER: {
+				//get args
+				tokens = tokenize(message_data,space);
+				if (tokens != 1){
+					send_error(connfd, 60, NULL, false);
+					return;
+				}
+
+				room_name = get_token(message_data,space,0);
+				lock_rooms(1);
+				ret = create_room(room_name, user, false, NULL);
+				unlock_rooms(1);
+				if (ret != 0){
+					send_error(connfd,ret,NULL,false);
+					return;
+				}
+				else {
+					send_data(connfd,RETAERC,room_name);
+
+					sprintf(sendbuff,"New chat room added: %s",room_name);
+					echo_all_waiting(ECHO,sendbuff);
+				}
+				return;
+			}
+			case CREATEP: {
+				tokens = tokenize(message_data,space);
+				if (tokens != 2){
+					send_error(connfd, 60, NULL, false);
+					return;
+				}
+
+				room_name = get_token(message_data,space,0);
+				password = get_token(message_data,space,1);
+
+				lock_rooms(1);
+				ret = create_room(room_name, user, true, password);
+				unlock_rooms(1);
+				if (ret != 0){
+					send_error(connfd,ret,NULL,false);
+					return;
+
+				}
+				else {
+					send_data(connfd,PETAERC,room_name);
+
+					sprintf(sendbuff,"New private chat room added: %s",room_name);
+					echo_all_waiting(ECHO,sendbuff);
+				}
+				return;
+			}
+			case LISTR: {
+				lock_rooms(1);
+				list_rooms(sendbuff);
+				unlock_rooms(1);
+				send_data_custom(connfd,sendbuff);
+				break;
+			}
+			case JOIN: {
+				tokens = tokenize(message_data,space);
+				if (tokens != 1){
+					send_error(connfd, 60, NULL, false);
+					return;
+				}
+
+				room_id_str = get_token(message_data,space,0);
+				room_id = strtol(room_id_str,NULL,10);
+				if (room_id == 0){
+					send_error(connfd, 60, NULL, false);
+					return;
+				}
+
+				lock_rooms(2);
+				room = get_room_by_id(room_id);
+
+				//if no such room
+				if (room == NULL){
+					unlock_rooms(2);
+					send_error(connfd, 20, room_id_str,false);
+					return;
+				}
+
+				//if room is private (we're using JOIN not JOINP)
+				if (room->private_room){
+					unlock_rooms(2);
+					send_error(connfd,21,room_id_str,false);
+					return;
+				}
+
+				ret = add_room_member(room,user,NULL);
+				unlock_rooms(2);
+
+				if (ret == 0){
+					send_data(connfd,NIOJ,room_id_str);
+				}
+				else {
+					send_error(connfd, 61, NULL, false);
+					return;
+				}
+				return;
+			}
+			case JOINP: {
+				tokens = tokenize(message_data,space);
+				if (tokens != 2){
+					send_error(connfd, 60, NULL, false);
+					return;
+				}
+
+				room_id_str = get_token(message_data,space,0);
+				password = get_token(message_data,space,1);
+
+				room_id = strtol(room_id_str,NULL,10);
+				if (room_id == 0){
+					send_error(connfd, 60, NULL, false);
+					return;
+				}
+
+				lock_rooms(2);
+				room = get_room_by_id(room_id);
+
+				if (room == NULL){
+					unlock_rooms(2);
+					send_error(connfd, 20, room_id_str,false);
+					return;
+				}
+
+				ret = add_room_member(room,user,password);
+				unlock_rooms(2);
+
+				if (ret == 0){
+					send_data(connfd,PNIOJ,room_id_str);
+				}
+				else {
+					send_error(connfd, 61, NULL, false);
+					return;
+				}
+				return;
+
+			}
+			case QUIT: {
+				relieve_user(username);
+
+				sprintf(sendbuff,"%s has logged out of the network.", username);
+				echo_all(ECHO,sendbuff);
+				break;
+			}
+
+			case ERR: {
+				infow("Got an error from user %s: %d %s",username,error_code,message_data);
+				break;
+			}
 		}
 	}
+
+
+
+
 
 }
 
@@ -101,6 +307,7 @@ void *echo_thread_func(void *arg){
 	char *username;
 	int timeout_ms = 2000;
 	user_info_t *user;
+	room_t *cur_room, *save;
 	// int poll(struct pollfd *fds, nfds_t nfds, int timeout);
 
 	int ret, num_users, i, flags, n;
@@ -109,6 +316,21 @@ void *echo_thread_func(void *arg){
 
 	debug("Echo thread started... Going into poll loop.");
 	while(true){
+
+		lock_rooms(1);
+		cur_room = save = rooms;
+		while (cur_room != NULL){
+
+			//if room has nobody in it
+			if (check_room(cur_room)){
+				close_room_by_name(cur_room->room_name);
+				break;
+			}
+			save = cur_room;
+			cur_room = cur_room->next;
+		}
+		unlock_rooms(1);
+
 
 		// get a list of all the users logged in, to multiplex on.
 		lock_user_info(1);
@@ -122,7 +344,7 @@ void *echo_thread_func(void *arg){
 	   		 	/* Set socket to non-blocking */ 
 
 				if ((flags = fcntl(fds[num_users].fd, F_GETFL, 0)) < 0){ 
-				    error("fcntl (get) in echo thread error: %s", strerror(flags));
+				    error("fcntl (get) in echo thread error: %s", strerror(errno));
 				} 
 
 				if (fcntl(fds[num_users].fd, F_SETFL, flags | O_NONBLOCK) < 0) 
@@ -132,9 +354,12 @@ void *echo_thread_func(void *arg){
 
 	    		num_users++;
 	    	}
+
+	    	// send_data(user->connfd, NOP, "keep alive");
 	    	user = user->next;
 	    }
 	    unlock_user_info(1);
+	    // debug("Echo thread found %d users.", num_users);
 
 
 	    //ignore the other descriptors.
@@ -171,37 +396,41 @@ void *echo_thread_func(void *arg){
 		        if (fds[i].revents & POLLIN) {
 		        	//read from socket.
 
-		        	/* TODO */
-		        	// echo_thread_read(fds[i].fd);
-		        	/* TODO */
 
-		        	//print out the username of whom sent to us
 		        	
-
-		        	debug("About to read...");
+		        	//debug("About to read...");
+		        	memset(recvbuff,0,MAX_RECV);
 		        	n = recv_data(fds[i].fd,recvbuff);
 		        	if (n < 0){
 		        		errorw("recv_data returned an error: %s", strerror(errno));
 		        		infow("%s disconnected", username);
-		        		logout_user(username);
+
+		        		relieve_user(username);
 		        	}
 		        	if (n == 0){
 		        		infow("%s disconnected", username);
-		        		//TODO
-		        		//logout client
-		        		logout_user(username);
+		        		
+		        		relieve_user(username);
+		        	}
+		        	else {
+		        		//TODO 
+
+		        		process_wait_room_request(username,recvbuff);
+		        		//respond to command.
 		        	}
 		        }
 
 		        if (fds[i].revents & POLLHUP) {
 		        	infow("%s disconnected", username);
-		        	logout_user(username);
+	        		relieve_user(username);
 		        }
 
 
 				if (fds[i].revents & POLLRDHUP){
 		        	infow("%s disconnected", username);
-		        	logout_user(username);
+		        	
+	        		relieve_user(username);
+
 					
 			    }
 			}
@@ -209,7 +438,7 @@ void *echo_thread_func(void *arg){
 		
 
 		else {
-			debug("echo thread found nothing on read sockets.");
+			//debug("echo thread found nothing on read sockets.");
 		}
 
 

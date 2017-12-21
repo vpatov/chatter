@@ -24,8 +24,9 @@ char *username;
 char recvbuff[MAX_RECV];
 char sendbuff[MAX_SEND];
 char stdinbuff[MAX_SEND];
+char command[MAX_SEND];
 
-
+int expected_verb;
 
 void close_conn(){
 	close(server_connfd);
@@ -34,6 +35,253 @@ void close_conn(){
 
 void print_motd(char *message){
 	printf(KWHT "%s" KNRM "\n", message);
+}
+
+
+void process_server_response(char *recvbuff){
+	int tokens, error_code, ret;
+	char *message;
+	char message_data[MAX_MSG_SIZE];
+	memset(message_data,0,MAX_MSG_SIZE);
+
+	// If we receive multiple messages in the same packet.
+	tokens = tokenize(recvbuff,sprn);
+	for (int t = 0; t< tokens; t++){
+		message = get_token(recvbuff,sprn,t);
+		if ((ret = expect_data(message, message_data, &error_code, 
+			3, expected_verb, ECHO, ECHOP)) < 0){
+			if (message_data[0]){
+				print_error(message,message_data,error_code);
+			}
+			else {
+				debug("process_server_response unhandled case: %s", recvbuff);
+			}
+			return;
+		}
+		else {
+
+			switch(ret){
+				case ECHO: {
+					printecho("%s",message_data);
+					break;
+				}
+				case RETAERC: {
+					infow("Received confirmation of room (%s) creation.", message_data);
+					break;
+				}
+
+				case PETAERC: {
+					infow("Received confirmation of private room (%s) creation.", message_data);
+					break;
+				}
+			}
+
+		}
+	}
+}
+
+void send_user_command(int verb, char *arg1, char *arg2){
+    char sendbuff[1024];
+    // memset(sendbuff,0,1024); //sprintf writes null terminator
+
+    if (arg2 == NULL){
+        if (arg1 == NULL){
+            sprintf(sendbuff, "%s \r\n",verbs[verb]);
+        }
+        else {
+            sprintf(sendbuff, "%s %s \r\n", verbs[verb], arg1);
+        }
+    }
+    else {
+        sprintf(sendbuff, "%s %s %s \r\n", verbs[verb], arg1, arg2);
+    }
+
+    expected_verb = verb + 1; //neatest thing ive done in this entire project
+
+    send_data_custom(server_connfd,sendbuff);
+    if (verb == QUIT){
+        exit(0);
+    }
+
+}
+
+
+void process_user_command(char *stdinbuff){
+    int int_arg;
+    // char end;
+    char *endptr;
+    char *command_root, *arg1, *arg2, *saveptr;
+
+
+    memset(command,0,MAX_SEND); // to be safe
+    strcpy(command,stdinbuff);
+
+    command_root = strtok_r(command, sprn, &saveptr);
+    if (command_root != NULL){
+        if (!strcmp(command_root,"/creater")){
+            arg1 = strtok_r(NULL,sprn,&saveptr);
+            if (arg1 == NULL){
+                printf("%s\n","Incomplete command.");
+                return;
+            }
+            else {
+                //send_creater
+                send_user_command(CREATER,arg1,NULL);
+                return;
+            }
+        }
+        else if (!strcmp(command_root,"/createp")){
+            arg1 = strtok_r(NULL,sprn,&saveptr);
+            if (arg1 == NULL){
+                printf("%s\n","Incomplete command.");
+                return;
+            }
+            else {
+                arg2 = strtok_r(NULL,sprn,&saveptr);
+                if (arg2 == NULL){
+                    printf("%s\n","/createp requires a room name and a password.");
+                    return;
+                }
+
+                else {
+                    //send_createp
+                    send_user_command(CREATEP,arg1,arg2);
+                    return;
+                }
+            }
+        }
+        else if (!strcmp(command_root,"/tell")){
+            arg1 = strtok_r(NULL,sprn,&saveptr);
+            if (arg1 == NULL){
+                printf("%s\n","Incomplete command.");
+                return;
+            }
+            else {
+                // arg2 = strtok_r(NULL,sprn,&saveptr);
+                arg2 = saveptr;
+                if (arg2 == NULL){
+                    printf("%s\n","/tell requires a user name and a message.");
+                    return;
+                }
+                else if (*arg2 == 0){
+                    printf("%s\n","/tell requires a user name and a message.");
+                    return;
+                }
+
+                else {
+                    //send_tell
+                    strip_char(arg2,'\n');
+                    send_user_command(TELL,arg1,arg2);
+                    return;
+                }
+            }
+
+        }
+        else if (!strcmp(command_root,"/listrooms")){
+            //send_listrooms
+            send_user_command(LISTR,NULL,NULL);
+            return;
+        }
+        else if (!strcmp(command_root,"/listusers")){
+            //send_listusers
+            send_user_command(LISTU,NULL,NULL);
+            return;
+        }
+        else if (!strcmp(command_root,"/join")){
+            arg1 = strtok_r(NULL,sprn,&saveptr);
+            if (arg1 == NULL){
+                printf("%s\n","Incomplete command.");
+                return;
+            }
+            else {
+                int_arg = strtol(arg1,&endptr,10);
+
+                if (errno != 0 && int_arg == 0) {
+                    printf("%s\n","/join must have an integer argument.");
+                    return;
+                }
+
+                else if (endptr == arg1) {
+                    printf("%s\n","/join must have an integer argument.");
+                    return;
+                }
+
+                else {
+                    //send_join
+                    send_user_command(JOIN,arg1,NULL);
+                    return;
+                }
+
+            }
+
+
+        }
+        else if (!strcmp(command_root,"/joinp")){
+            arg1 = strtok_r(NULL,sprn,&saveptr);
+            if (arg1 == NULL){
+                printf("%s\n","Incomplete command.");
+                return;
+            }
+            else {
+                int_arg = strtol(arg1,&endptr,10);
+                if (errno != 0 && int_arg == 0) {
+                    printf("%s\n","/joinp must have an integer argument.");
+                    return;
+                }
+
+                else if (endptr == arg1) {
+                    printf("%s\n","/joinp must have an integer argument.");
+                    return;
+                }
+                else {
+                    arg2 = strtok_r(NULL,sprn,&saveptr);
+                    if (arg2 == NULL){
+                        printf("%s\n","/joinp requires a room id and a password.");
+                        return;
+                    }
+
+                    else {
+                        //send_joinp
+                        send_user_command(JOINP,arg1,arg2);
+                        return;
+                    }
+                }
+            }
+        }
+
+        else if (!strcmp(command_root,"/leave")){
+            //send_leave
+            send_user_command(LEAVE,NULL,NULL);
+
+            return;
+        }
+        else if (!strcmp(command_root,"/quit")){
+            //send_quit
+            send_user_command(QUIT,NULL,NULL);
+
+            return;
+        }
+        else if (!strcmp(command_root,"/kick")){
+            arg1 = strtok_r(NULL,sprn,&saveptr);
+            if (arg1 == NULL){
+                printf("%s\n","Incomplete command.");
+                return;
+            }
+            else {
+                //send_kick
+                send_user_command(KICK,arg1,NULL);
+
+                return;
+            }
+        }
+        else {
+            printf("%s\n","You've entered an invalid command.");
+            return;
+        }
+    }
+    else {
+        printf("%s\n","You've entered an invalid command.");
+    }
 }
 
 void main_communication(){
@@ -51,6 +299,7 @@ void main_communication(){
 		ret = poll(fds, 2, timeout_ms);
 		if (ret > 0) {
 			if (fds[0].revents & POLLIN){
+				memset(recvbuff,0,MAX_MSG_SIZE);
 				ret = recv_data(server_connfd,recvbuff);
 				if (ret < 0){
 					debug("server returned: %d %s",ret, strerror(ret));
@@ -60,7 +309,12 @@ void main_communication(){
 					debug("server returned zero.");
 					exit(0);
 				}
-				debug("received from server: %s", recvbuff);
+				// debugw("Server sent: %s", recvbuff);
+
+				process_server_response(recvbuff);
+
+				//TODO multiplex on server's response
+
 			}
 
 			if (fds[0].revents & POLLHUP){
@@ -75,7 +329,6 @@ void main_communication(){
 			}
 			if (fds[1].revents & POLLIN){
 				ret = read(fileno(stdin), stdinbuff, MAX_SEND);
-				debug("Client ret: %d", ret);
 				if (ret > 0){
 					stdinbuff[ret] = '\0';
 				}
@@ -87,9 +340,8 @@ void main_communication(){
 				strip_char(stdinbuff,'\n');
 
 
-				// TODO switch on commands
+				process_user_command(stdinbuff);
 
-				send_data(server_connfd,MSG,stdinbuff);
 			}
 
 		}
@@ -111,7 +363,7 @@ void iam_login_client(){
 	tokens = tokenize(recvbuff,sprn);
 	message = get_token(recvbuff,sprn,0);
 	//expect an AUTH from server.
-	if ((ret = expect_data(recvbuff,message_data, &error_code,1,AUTH)) < 0){
+	if ((ret = expect_data(message,message_data, &error_code,1,AUTH)) < 0){
 		print_error(recvbuff,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
@@ -125,7 +377,7 @@ void iam_login_client(){
 	}
 
 	//Prompt user for password, and send it to server
-	prompt("Please enter your password:");
+	promptnl("Please enter your password:");
 	scanf("%s",user_password);
 	send_data(server_connfd, PASS, user_password);
 
@@ -134,9 +386,9 @@ void iam_login_client(){
 	recv_data(server_connfd, recvbuff);
 	tokens = tokenize(recvbuff,sprn);
 	message = get_token(recvbuff,sprn,0);
-	if (expect_data(recvbuff, message_data, &error_code, 1, HI) < 0){
+	if (expect_data(message, message_data, &error_code, 1, HI) < 0){
 		// our password may have been wrong
-		print_error(recvbuff,message_data,error_code);
+		print_error(recvbuff,message,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
@@ -150,14 +402,19 @@ void iam_login_client(){
 		if (message != NULL){
 			if (expect_data(message, message_data, &error_code, 1, ECHO) < 0){
 				// our password may have been wrong
-				print_error(recvbuff,message_data,error_code);
+				print_error(message,message_data,error_code);
 				send_error(server_connfd, 60, NULL, true);
 				return;
 			}
 			printf(KWHT "%s" KNRM "\n" , message_data);
 		}
 		else {
-			error("get_token returned NULL. Could not get MOTD");
+
+
+			// error("Couldn't get MOTD");
+
+
+
 		}
 	}
 
@@ -182,8 +439,8 @@ void iamnew_login_client(){
 	tokens = tokenize(recvbuff,sprn);
 	message = get_token(recvbuff,sprn,0);	
 	//expect a HINEW <username> from server.
-	if ((ret = expect_data(recvbuff,message_data,&error_code,1,HINEW)) < 0){
-		print_error(recvbuff,message_data,error_code);
+	if ((ret = expect_data(message,message_data,&error_code,1,HINEW)) < 0){
+		print_error(message,message_data,error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
 	}
@@ -195,8 +452,7 @@ void iamnew_login_client(){
 		return;
 	}
 
-	//Prompt user for password
-	fprintf(output,"%s",password_rules);
+	promptnl("%s",password_rules);
 	while(true){
 		scanf("%s",user_password);
 		if (check_password(user_password))
@@ -204,11 +460,11 @@ void iamnew_login_client(){
 		else {
 			attempts++;
 			if (attempts >= 3){
-				fprintf(output,"Too many tries. Sober up and try again later.\n");
+				promptnl("Too many tries. Sober up and try again later.");
 				close(server_connfd);
 				exit(1);
 			}
-			fprintf(output,"Password does not meet criterion. Please try again.\n");
+			promptnl("Password does not meet criterion. Please try again.");
 		}
 	}
 
@@ -219,7 +475,7 @@ void iamnew_login_client(){
 	recv_data(server_connfd,recvbuff);
 	tokens = tokenize(recvbuff,sprn);
 	message = get_token(recvbuff,sprn,0);
-	if ((ret = expect_data(recvbuff,message_data,&error_code,1,HI)) < 0){
+	if ((ret = expect_data(message,message_data,&error_code,1,HI)) < 0){
 		print_error(recvbuff, message_data, error_code);
 		send_error(server_connfd, 60, NULL, true);
 		return;
@@ -227,20 +483,23 @@ void iamnew_login_client(){
 
 	info("Client successfully logged in as new user: %s", username);
 
+
+
+
 	
 	if (tokens > 1){
 		message = get_token(recvbuff,sprn,1);
 		if (message != NULL){
 			if (expect_data(message, message_data, &error_code, 1, ECHO) < 0){
 				// our password may have been wrong
-				print_error(recvbuff,message_data,error_code);
+				print_error(message,message_data,error_code);
 				send_error(server_connfd, 60, NULL, true);
 				return;
 			}
 			printf(KWHT "%s" KNRM "\n" , message_data);
 		}
 		else {
-			error("get_token returned NULL. Could not get MOTD");
+			// error("Couldn't get MOTD");
 		}
 	}
 
@@ -264,7 +523,7 @@ void login_protocol()
 		return;
 	}
 
-	info("Received %s from server.", verbs[AHOLA]);
+	//info("Received %s from server.", verbs[AHOLA]);
 
 	if (create_user_mode){
 		iamnew_login_client();
@@ -286,7 +545,7 @@ connect_to_server()
 	bzero(&server_sa,sizeof(server_sa));
 	server_sa.sin_family = AF_INET;
 	server_sa.sin_port = htons(server_port);
-	server_sa.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server_sa.sin_addr.s_addr = inet_addr(server_ip);
 
 	err = connect(server_connfd,(SA *)&server_sa,server_addrlen);
 
