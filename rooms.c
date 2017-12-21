@@ -46,7 +46,7 @@ int create_room(char *room_name, user_info_t *user, bool private_room, char *pas
 	first_user->owner = true;
 	first_user->next = NULL;
 
-	user->in_room = true;
+	user->room = new_room;
 
 	//copy in the fields into the room struct
 	strcpy(new_room->room_name,room_name);
@@ -107,7 +107,7 @@ int free_room_members(room_member_t *room_members){
 
 	while(room_members != NULL){
 		save = room_members;
-		room_members->user->in_room = false;
+		room_members->user->room = NULL;
 		room_members = room_members->next;
 		free(save);
 	}
@@ -135,7 +135,7 @@ int add_room_member(room_t *room, user_info_t *user, char *password){
 	new_room_member->owner = false;
 	new_room_member->user = user;
 
-	user->in_room = true;
+	user->room = room;
 
 	//add it to the linked list
 	new_room_member->next = room->room_members;
@@ -166,7 +166,7 @@ int remove_room_member(room_t *room, char *username){
 			sprintf(message_data,"User %s has left room %d %s.",cur_member->user->username,room->room_id,room->room_name);
 			echo_all_room(room,ECHO,message_data);
 
-			cur_member->user->in_room = false;
+			cur_member->user->room = NULL;
 			free(cur_member);
 
 			//set the owner to the next user
@@ -251,27 +251,27 @@ int list_rooms(char *sendbuff){
 	return num_rooms;
 }
 
-// void list_users(char *sendbuff){
-// 	char user_info[64];
-// 	room_t *cur_room;
-// 	int length;
-// 	int offset;
+void list_users(room_t *room, char *sendbuff){
+	char user_info[64];
+	room_member_t *member;
+	int length;
+	int offset;
 
-// 	memset(room_info,0,64);
+	memset(user_info,0,64);
 
-// 	sprintf(sendbuff,"RTSIL " );
-// 	offset = strlen("RTSIL ");
+	sprintf(sendbuff,"UTSIL " );
+	offset = strlen("UTSIL ");
 
-// 	cur_room = rooms;
-// 	while (cur_room != NULL){
-// 		sprintf(room_info,"%s %d \r\n",cur_room->room_name, cur_room->room_id);
-// 		length = strlen(room_info);
-// 		sprintf(sendbuff + offset,"%s",room_info);
-// 		offset+=length;
-// 		cur_room = cur_room->next;
-// 	}
-// 	sprintf(sendbuff+offset,"\r\n");
-// }
+	member = room->room_members;
+	while (member != NULL){
+		sprintf(user_info,"%s\r\n",member->user->username);
+		length = strlen(user_info);
+		sprintf(sendbuff + offset,"%s",user_info);
+		offset+=length;
+		member = member->next;
+	}
+	sprintf(sendbuff+offset,"\r\n");
+}
 
 
 int check_room(room_t *room){

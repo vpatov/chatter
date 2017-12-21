@@ -40,7 +40,7 @@ void echo_all_waiting(int verb, char *message_data){
 	cur_user = user_infos;
 	while(cur_user != NULL){
 
-		if (cur_user->ready && !cur_user->in_room){
+		if (cur_user->ready && cur_user->room == NULL){
 			send_data(cur_user->connfd,verb,message_data);
 		}
 		cur_user = cur_user->next;
@@ -57,8 +57,19 @@ void echo_all_room(room_t *room, int verb, char *message_data){
 		send_data(room_member->user->connfd,ECHO,message_data);
 		room_member = room_member->next;
 	}
-
 }
+
+void echor_room(room_t *room, int verb, char *message_data){
+	room_member_t *room_member;
+
+	room_member = room->room_members;
+
+	while(room_member != NULL){
+		send_data(room_member->user->connfd,ECHOR,message_data);
+		room_member = room_member->next;
+	}
+}
+
 
 // in the waiting room, users can:
 // 1) Create a room
@@ -96,15 +107,39 @@ void process_wait_room_request(char *username, char *recvbuff){
 	message_body = get_token(recvbuff,sprn,0);
 
 
-	if (user->in_room){
+	if (user->room != NULL){
 		if ((ret = expect_data(recvbuff,message_data, &error_code,
-			5,LEAVE,LISTU,TELL,KICK,QUIT)) < 0){
+			8,LEAVE,LISTU,TELL,KICK,QUIT,ECHO,ECHOR,ECHOP)) < 0){
 			print_error(recvbuff,message_data,error_code);
 			send_error(connfd, 60, NULL, false);
 			return;
 		}
 		switch(ret){
+			case LEAVE: {
 
+				send_data(connfd,EVAEL,NULL);
+				sprintf(sendbuff,"%s has left the room.", username);
+				lock_rooms(1);
+				echo_all_room(user->room,ECHO,sendbuff);
+				remove_user_from_rooms(username);
+				unlock_rooms(1);
+				return;
+			}
+
+			case LISTU: {
+				lock_rooms(1);
+				list_users(user->room,sendbuff);
+				unlock_rooms(1);
+				send_data_custom(connfd,sendbuff);
+				break;
+			}
+
+			case ECHOR: {
+				sprintf(sendbuff,"%s %s",username,message_data);
+				lock_rooms(1);
+				echor_room(user->room,ECHOR,sendbuff);
+				unlock_rooms(1);
+			}
 		}	
 	}
 

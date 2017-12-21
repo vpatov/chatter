@@ -33,6 +33,7 @@
 
 
 
+typedef struct room room_t;
 
 
 
@@ -79,7 +80,7 @@ enum verbs_enum {
 	LEAVE,EVAEL,
 	KICK,KCIK,
 	TELL,LLET,
-	ECHO,ECHOP,
+	ECHO,ECHOP, ECHOR,
 	NOP, QUIT
 };
 
@@ -188,7 +189,7 @@ struct user_info {
 	char username[MAX_USERNAME+1];
 	int connfd;
 	bool ready;
-	bool in_room;
+	room_t *room;
 	user_info_t *next;
 };
 extern user_info_t *user_infos;									// logged in users, and their socket descriptors
@@ -227,7 +228,6 @@ struct room_member {
 };
 
 
-typedef struct room room_t;
 struct room {
 	char room_name[MAX_USERNAME];
 	bool private_room;
@@ -254,6 +254,7 @@ int remove_room_member(room_t *room, char *username);
 int remove_user_from_rooms(char *username);
 int close_room(room_t *room);
 int list_rooms(char *sendbuff);
+void list_users(room_t *room, char *sendbuff);
 int check_room(room_t *room);
 int close_room_by_name(char *room_name);
 

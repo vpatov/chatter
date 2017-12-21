@@ -42,7 +42,7 @@ const char *verbs[] = {
 	"LEAVE","EVAEL",
 	"KICK","KCIK",
 	"TELL","LLET",
-	"ECHO", "ECHOP",
+	"ECHO", "ECHOP","ECHOR",
 	"NOP", "QUIT"
 };
 

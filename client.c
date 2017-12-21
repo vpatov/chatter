@@ -59,7 +59,7 @@ void process_server_response(char *recvbuff){
 	for (int t = 0; t< tokens; t++){
 		message = get_token(recvbuff,sprn,t);
 		if ((ret = expect_data(message, message_data, &error_code, 
-			3, expected_verb, ECHO, ECHOP)) < 0){
+			4, expected_verb, ECHO, ECHOP,ECHOR)) < 0){
 			if (message_data[0]){
 				print_error(message,message_data,error_code);
 			}
@@ -75,6 +75,15 @@ void process_server_response(char *recvbuff){
 					printecho("%s",message_data);
 					break;
 				}
+				case ECHOP: {
+					printpriv("%s",message_data);
+					break;
+				}
+
+				case ECHOR: {
+					printechor("%s",message_data);
+					break;
+				}
 				case RETAERC: {
 					infow("Received confirmation of room (%s) creation.", message_data);
 					break;
@@ -87,14 +96,17 @@ void process_server_response(char *recvbuff){
 
 				case NIOJ: {
 					infow("Received confirmation of joining room (%s).",message_data);
+					break;
 				}
 
 				case PNIOJ: {
 					infow("Received confirmation of joining private room (%s).",message_data);
+					break;
 				}
 
 				case RTSIL: {
 					print_nice(message_data);
+					break;
 				}
 			}
 
@@ -296,9 +308,26 @@ void process_user_command(char *stdinbuff){
                 return;
             }
         }
-        else {
-            printf("%s\n","You've entered an invalid command.");
-            return;
+
+        else if (!strcmp(command_root,"/echo")){
+        	arg1 = saveptr;
+        	if (arg1 == NULL){
+        		printf("%s\n", "/echo needs at least one-non whitespace character to send.");
+        		return;
+        	}
+        	else if (*arg1 == 0){
+                printf("%s\n", "/echo needs at least one-non whitespace character to send.");
+                return;
+            }
+
+
+            else {
+                //send_echo
+                strip_char(arg1,'\n');
+                send_user_command(ECHOR,arg1,NULL);
+                return;
+            }
+            
         }
     }
     else {
