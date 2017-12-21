@@ -168,9 +168,15 @@ void process_wait_room_request(char *username, char *recvbuff){
 			}
 			case LISTR: {
 				lock_rooms(1);
-				list_rooms(sendbuff);
+				ret = list_rooms(sendbuff);
 				unlock_rooms(1);
-				send_data_custom(connfd,sendbuff);
+				if (ret == 0){
+					sprintf(sendbuff,"RTSIL no_rooms -1\r\n\r\n");
+					send_data_custom(connfd,sendbuff);
+				}
+				else {
+					send_data_custom(connfd,sendbuff);
+				}
 				break;
 			}
 			case JOIN: {
@@ -205,12 +211,16 @@ void process_wait_room_request(char *username, char *recvbuff){
 				}
 
 				ret = add_room_member(room,user,NULL);
-				unlock_rooms(2);
 
 				if (ret == 0){
 					send_data(connfd,NIOJ,room_id_str);
+					sprintf(sendbuff,"User %s has joined this room (%s).",username,room->room_name);
+					echo_all_room(room,ECHO,sendbuff);
+					unlock_rooms(2);
+
 				}
 				else {
+					unlock_rooms(2);
 					send_error(connfd, 61, NULL, false);
 					return;
 				}
@@ -242,12 +252,16 @@ void process_wait_room_request(char *username, char *recvbuff){
 				}
 
 				ret = add_room_member(room,user,password);
-				unlock_rooms(2);
 
 				if (ret == 0){
 					send_data(connfd,PNIOJ,room_id_str);
+					sprintf(sendbuff,"User %s has joined this room (%s).",username,room->room_name);
+					echo_all_room(room,ECHO,sendbuff);
+					unlock_rooms(2);
+
 				}
 				else {
+					unlock_rooms(2);
 					send_error(connfd, 61, NULL, false);
 					return;
 				}
@@ -255,6 +269,7 @@ void process_wait_room_request(char *username, char *recvbuff){
 
 			}
 			case QUIT: {
+
 				relieve_user(username);
 
 				sprintf(sendbuff,"%s has logged out of the network.", username);

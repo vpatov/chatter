@@ -33,7 +33,7 @@ void close_conn(){
 	exit(0);
 }
 
-void print_motd(char *message){
+void print_nice(char *message){
 	printf(KWHT "%s" KNRM "\n", message);
 }
 
@@ -41,8 +41,18 @@ void print_motd(char *message){
 void process_server_response(char *recvbuff){
 	int tokens, error_code, ret;
 	char *message;
+	const char *delim;
 	char message_data[MAX_MSG_SIZE];
 	memset(message_data,0,MAX_MSG_SIZE);
+
+
+	delim = sprn;
+	if (!(strncmp("RTSIL",recvbuff,5))){
+		delim = rn;
+	}
+	if (!(strncmp("UTSIL",recvbuff,5))){
+		delim = rn;
+	}
 
 	// If we receive multiple messages in the same packet.
 	tokens = tokenize(recvbuff,sprn);
@@ -73,6 +83,18 @@ void process_server_response(char *recvbuff){
 				case PETAERC: {
 					infow("Received confirmation of private room (%s) creation.", message_data);
 					break;
+				}
+
+				case NIOJ: {
+					infow("Received confirmation of joining room (%s).",message_data);
+				}
+
+				case PNIOJ: {
+					infow("Received confirmation of joining private room (%s).",message_data);
+				}
+
+				case RTSIL: {
+					print_nice(message_data);
 				}
 			}
 

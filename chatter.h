@@ -253,7 +253,7 @@ int add_room_member(room_t *room, user_info_t *user, char *password);
 int remove_room_member(room_t *room, char *username);
 int remove_user_from_rooms(char *username);
 int close_room(room_t *room);
-void list_rooms(char *sendbuff);
+int list_rooms(char *sendbuff);
 int check_room(room_t *room);
 int close_room_by_name(char *room_name);
 

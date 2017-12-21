@@ -297,7 +297,7 @@ int tokenize(char *string, const char *delim){
             save = ptr;
             tokens++;
         }
-        else if (*save)
+        else if (*save && (strcmp(save,delim)))
         	tokens++;
 
     

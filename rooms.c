@@ -147,6 +147,7 @@ int add_room_member(room_t *room, user_info_t *user, char *password){
 
 int remove_room_member(room_t *room, char *username){
 	room_member_t *cur_member, *prev;
+	room_t *iter_room, *prev_room;
 	char message_data[MAX_SEND];
 
 	prev = NULL;
@@ -162,7 +163,7 @@ int remove_room_member(room_t *room, char *username){
 				prev->next = cur_member->next;
 			}
 
-			sprintf("User %s has left room %d %s.",cur_member->user->username,room->room_id,room->room_name);
+			sprintf(message_data,"User %s has left room %d %s.",cur_member->user->username,room->room_id,room->room_name);
 			echo_all_room(room,ECHO,message_data);
 
 			cur_member->user->in_room = false;
@@ -174,11 +175,28 @@ int remove_room_member(room_t *room, char *username){
 			}
 
 
-			//echo thread will check rooms and close them if need be
-			//otherwise, nobody in it, close the room
-			// else {
-			// 	close_room(room->room_name);
-			// }
+			// otherwise, nobody in it, close the room
+			else {
+				prev_room = NULL;
+				iter_room = rooms;
+				while(iter_room != NULL){
+					if (iter_room == room){
+						if (prev_room == NULL){
+							rooms = iter_room->next;
+						}
+						else {
+							prev_room->next = iter_room->next;
+						}
+
+						free_room_members(iter_room->room_members);	
+						free(iter_room);
+						return 0;
+					}
+
+					prev_room = iter_room;
+					iter_room = iter_room->next;
+				}
+			}
 			return 0;
 		}
 		prev = cur_member;
@@ -208,26 +226,29 @@ int remove_user_from_rooms(char *username){
 	return 1;
 }
 
-void list_rooms(char *sendbuff){
+int list_rooms(char *sendbuff){
 	char room_info[64];
 	room_t *cur_room;
+	int num_rooms;
 	int length;
 	int offset;
 
 	memset(room_info,0,64);
-
+	num_rooms = 0;
 	sprintf(sendbuff,"RTSIL " );
 	offset = strlen("RTSIL ");
 
 	cur_room = rooms;
 	while (cur_room != NULL){
-		sprintf(room_info,"%s %d \r\n",cur_room->room_name, cur_room->room_id);
+		sprintf(room_info,"%s %d\r\n",cur_room->room_name, cur_room->room_id);
 		length = strlen(room_info);
 		sprintf(sendbuff + offset,"%s",room_info);
 		offset+=length;
 		cur_room = cur_room->next;
+		num_rooms++;
 	}
 	sprintf(sendbuff+offset,"\r\n");
+	return num_rooms;
 }
 
 // void list_users(char *sendbuff){
