@@ -146,6 +146,7 @@ int expect_data(char *recvbuff, char *message_data, int *error_code, int num_ver
 
 		//GET ERROR CODE
 		error_num = strtok_r(saveptr1, space, &saveptr2);
+		errno = 0;
 		if (error_num != NULL){
 			*error_code = strtol(error_num,NULL,10);
     		if (errno != 0){
