@@ -108,6 +108,11 @@ void process_server_response(char *recvbuff){
 					print_nice(message_data);
 					break;
 				}
+
+				case UTSIL: {
+					print_nice(message_data);
+					break;
+				}
 			}
 
 		}

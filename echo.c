@@ -51,6 +51,11 @@ void echo_all_waiting(int verb, char *message_data){
 void echo_all_room(room_t *room, int verb, char *message_data){
 	room_member_t *room_member;
 
+	if (room == NULL){
+		error("echo_all_room: room is NULL");
+		return;
+	}
+
 	room_member = room->room_members;
 
 	while(room_member != NULL){
@@ -62,12 +67,44 @@ void echo_all_room(room_t *room, int verb, char *message_data){
 void echor_room(room_t *room, int verb, char *message_data){
 	room_member_t *room_member;
 
+	if (room == NULL){
+		error("echor_room: room is NULL");
+		return;
+	}
+
 	room_member = room->room_members;
 
 	while(room_member != NULL){
 		send_data(room_member->user->connfd,ECHOR,message_data);
 		room_member = room_member->next;
 	}
+}
+
+int echo_user(char *username, char *message, room_t *sender_room){
+	user_info_t *user;
+
+	user = get_user_byname(username);
+	if (user != NULL){
+		if (user->room == sender_room){
+			send_data(user->connfd,ECHOP,message);
+		}
+		else {
+			return 30;
+		}
+		return 0;
+	}
+	return 30;
+}
+
+int echo_kick_user(char *username, char *message){
+	user_info_t *user;
+
+	user = get_user_byname(username);
+	if (user != NULL){
+		send_data(user->connfd,ECHOP,message);
+		return 0;
+	}
+	return 30;
 }
 
 
@@ -83,9 +120,11 @@ void process_wait_room_request(char *username, char *recvbuff){
 	char message_data[MAX_RECV];
 	char sendbuff[MAX_SEND];
 	char *message_body;
+	char *dest_username, *saveptr;
 	char *room_name, *room_id_str, *password;
 	user_info_t *user;
 	room_t *room;
+	room_member_t *member;
 
 	lock_user_info(1);
 	user = get_user_byname(username);
@@ -131,6 +170,7 @@ void process_wait_room_request(char *username, char *recvbuff){
 				list_users(user->room,sendbuff);
 				unlock_rooms(1);
 				send_data_custom(connfd,sendbuff);
+				return;
 				break;
 			}
 
@@ -139,7 +179,90 @@ void process_wait_room_request(char *username, char *recvbuff){
 				lock_rooms(1);
 				echor_room(user->room,ECHOR,sendbuff);
 				unlock_rooms(1);
+				return;
+
 			}
+
+			case TELL: {
+				
+				dest_username = strtok_r(message_data,space,&saveptr);
+				sprintf(sendbuff,"%s %s",username, saveptr);
+				lock_user_info(1);
+				if (echo_user(dest_username,sendbuff,user->room)){
+					send_error(connfd,30,NULL,false);
+				}
+				unlock_user_info(1);
+				return;
+			}
+
+			case KICK: {
+				bool sanity = false;
+				lock_rooms(1);
+				member = user->room->room_members;
+				while(member != NULL){
+					if (member->owner){
+						if (member->user != user){
+							unlock_rooms(1);
+							send_error(connfd,40,NULL,false);
+							return;
+						}
+						else {
+							sanity = true;
+						}
+					}
+					member = member->next;
+				}
+				unlock_rooms(1);
+
+				if (!sanity){
+					debug("Room %s has no owner.", user->room->room_name);
+					send_error(connfd,40,NULL,false);
+				}
+
+				tokens = tokenize(message_data,space);
+				if (tokens != 1){
+					send_error(connfd, 60, NULL, false);
+					return;
+				}
+
+				dest_username = get_token(message_data,space,0);
+
+				lock_rooms(1);
+				if (remove_room_member(user->room,dest_username)){
+					unlock_rooms(1);
+					send_error(connfd,41,NULL,false);
+					return;
+				}
+
+				sprintf(sendbuff,"%s has been kicked out.",dest_username);
+				echo_all_room(user->room,ECHO,sendbuff);
+				unlock_rooms(1);
+
+				sprintf(sendbuff, "%s kicked you out of the room!", username);
+				lock_user_info(1);
+				echo_kick_user(username,sendbuff);
+				unlock_user_info(1);
+
+				return;
+			}
+
+			case QUIT: {
+				relieve_user(username);
+
+				sprintf(sendbuff,"%s has logged out of the network.", username);
+				echo_all(ECHO,sendbuff);
+				sprintf(sendbuff,"%s has left the room.",username);
+				lock_rooms(1);
+				echo_all_room(user->room,ECHO,sendbuff);
+				unlock_rooms(1);
+				return;
+			}
+
+			// case ECHOP: {
+			// 	if (!user->room->private_room){
+
+			// 	}
+			// }
 		}	
 	}
 
