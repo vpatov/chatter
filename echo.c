@@ -240,7 +240,7 @@ void process_wait_room_request(char *username, char *recvbuff){
 
 				sprintf(sendbuff, "%s kicked you out of the room!", username);
 				lock_user_info(1);
-				echo_kick_user(username,sendbuff);
+				echo_kick_user(dest_username,sendbuff);
 				unlock_user_info(1);
 
 				return;

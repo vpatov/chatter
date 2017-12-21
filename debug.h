@@ -35,6 +35,8 @@
 #define RECV_FG "\x1B[38;2;90;255;90m"
 #define RECV_BG "\x1B[48;2;10;10;10m"
 
+#define GRAY    "\x1B[38;2;210;210;210m"
+
 
 
 

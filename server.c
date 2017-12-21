@@ -9,6 +9,7 @@ int server_port;
 int num_chat_rooms;
 FILE *output;
 
+char *config_file;
 pool_t *threadpool;
 
 void spawn_login_thread();
@@ -101,10 +102,37 @@ accept_connections()
 	Initialize server's data structures, and start the echo thread.
 */
 
+// uint16_t - minimum
+// uint16_t - maximum
+// uint16_t - Size of
+// uint16_t - Time in
+// terminating.
+// thread pool size
+// thread pool size
+// the queue used for queuing up work.
+// milliseconds for a worker thread to linger before
+
+int th_min, th_max, th_size, th_linger;
+void read_configfile(){
+	FILE *fp;
+
+	fp = fopen(config_file,"r");
+	if (fp == NULL){
+		error("bad config file path: %s", config_file);
+		exit(1);
+	}
+
+	fscanf(fp,"%d\n%d\n%d\n%d\n",&th_min,&th_max,&th_size,&th_linger);
+	printf(GRAY "Read values from config file:\nmin:%d max:%d size:%d linger:%d" KNRM "\n",th_min,th_max,th_size,th_linger);
+
+
+}
+
 void 
 server_init()
 {
 	output = stdout;
+	read_configfile();
 	printf(KWHT "Chatter Server (created by Vasia Patov for 522 w/Jwong) :)" KNRM "\n\n\n");
 
 	init_user_mutexes();
@@ -113,7 +141,8 @@ server_init()
 
 	assert(signal(SIGPIPE, pipe_handler) != SIG_ERR);
 
-	threadpool = pool_create(2,4,500,NULL);
+
+	threadpool = pool_create(th_min,th_max,th_linger,NULL);
 
 	// pool_queue(threadpool,check_user_connections_func,NULL);
 
@@ -140,12 +169,12 @@ void parse_args(int argc, char** argv){
         }
     }
 
-    if (num_chat_rooms && optind + 3 != argc){
+    if (num_chat_rooms && optind + 4 != argc){
     	fprintf(stderr,"%s",server_help_message);
     	exit(EXIT_FAILURE);
     }
 
-    else if (!num_chat_rooms && optind + 2 != argc){
+    else if (!num_chat_rooms && optind + 3 != argc){
     	fprintf(stderr,"%s",server_help_message);
     	exit(EXIT_FAILURE);
     }
@@ -172,6 +201,9 @@ void parse_args(int argc, char** argv){
     	fprintf(stderr,"%s",server_help_message);
     	exit(EXIT_FAILURE);
     }
+    config_file = argv[optind++];
+
+
 }
 
 int main(int argc, char **argv){

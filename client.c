@@ -18,6 +18,23 @@ struct sockaddr_in server_sa;
 socklen_t server_addrlen;
 FILE *output;
 
+const char *help_output =  \
+"If in the waiting room:\n"
+"/creater <name>                create a normal room\n"
+"/createp <name> <password>     create a private room\n"
+"/listrooms                     list the rooms you can join\n"
+"/join <room_id>                join a room\n" 
+"/joinp <room_id> <password>    join a private room\n" 
+"/quit                          logout from network\n\n"
+"If in a chat room:\n"
+"/listusers                     get a list of users in this room\n"
+"/tell <name> <message...>      private message someone in this room\n"
+"/kick <name>                   kick the user from the room, if they are in this room, and if you are owner\n"
+"/leave                         leave the current chat room, making someone else owner if you are owner\n"
+"/echo <message...>             not specified in documentation - this sends a message to everyone in your room\n"
+"/quit                          leave room and logout\n"
+"/help                          this help menu\n"
+;
 
 char *server_ip;
 char *username;
@@ -113,6 +130,16 @@ void process_server_response(char *recvbuff){
 					print_nice(message_data);
 					break;
 				}
+
+				case EVAEL: {
+					infow("Received confirmation that server understood we left the room.");
+					break;
+				}
+
+				case LLET: {
+					break;
+				}
+
 			}
 
 		}
@@ -333,6 +360,11 @@ void process_user_command(char *stdinbuff){
                 return;
             }
             
+        }
+
+        else if (!strcmp(command_root,"/help")){
+        	printf(GRAY "%s" KNRM "\n",help_output);
+        	return;
         }
     }
     else {
