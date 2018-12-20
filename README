@@ -22,3 +22,15 @@ I had a lot of fun working on this.
 
 Please don't hesitate to e-mail me if there are any questions or concerns!
 vasiapatov@gmail.com
+
+
+Some gifs of example program usage:
+
+- First time initialization and user creation:
+![](./gifs/chatter_init.gif)
+
+- Failed login attempt followed by successful attempt:
+![](./gifs/chatter_login.gif)
+
+- Creating a chat room, having another user join it, and then chatting:
+![](./gifs/chatter_joinroomchat.gif)
