@@ -1,3 +1,5 @@
+_(This was part of my gradaute coursework in the M.S. Computer Science program at Stony Brook, 2017)_
+
 Welcome to Chatter, a simple multithreaded Chat Client/Server that follows the PIRC protocol (RFC 943343 pending), and uses its own implementation of workers/thread pool.
 
 The usage is as described in the HW specifics. To reacquaint yourself with the required arguments, simply run ./server or ./client without arguments to get a printout of their usage. Or for your convenience, there are two bash scripts, client.sh and server.sh in which you can store commonly used arguments.
